@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { okReading, type Provider } from 'core'
 import { Repo } from '../src/db.js'
 import { createWorker } from '../src/index.js'
 import { resetDb, telegramMock, testEnv, type TelegramMock } from './helpers.js'
@@ -20,8 +21,11 @@ beforeEach(async () => {
 
 const ctx = () => ({ waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {} }) as unknown as ExecutionContext
 
-async function send(text: string, opts: { chat?: number; secret?: string | null; body?: unknown } = {}): Promise<Response> {
-  const worker = createWorker({ fetch: tg.fetch, sleep: async () => {}, providers: [] })
+async function send(
+  text: string,
+  opts: { chat?: number; secret?: string | null; body?: unknown; providers?: Provider<any>[] } = {},
+): Promise<Response> {
+  const worker = createWorker({ fetch: tg.fetch, sleep: async () => {}, providers: opts.providers ?? [] })
   const headers: Record<string, string> = { 'content-type': 'application/json' }
   if (opts.secret !== null) headers['x-telegram-bot-api-secret-token'] = opts.secret ?? 'hook-secret'
   const body = opts.body ?? { update_id: 1, message: { chat: { id: opts.chat ?? 42 }, text } }
@@ -202,6 +206,23 @@ describe('POST /telegram', () => {
     expect(tg.texts[1]).toContain('Estado de tus cuotas')
     expect(tg.texts[1]).toContain('portátil')
     expect(tg.texts[1]).toContain('Antigravity')
+  })
+
+  it('/actualizar reports a failed refresh instead of staying silent', async () => {
+    await repo.putCredential('codex', '{}')
+    const broken: Provider<unknown> = {
+      id: 'codex',
+      source: 'cloud',
+      parseCredential: (raw) => JSON.parse(raw),
+      serializeCredential: (c) => JSON.stringify(c),
+      read: async (ctx) => ({
+        reading: okReading('codex', 'cloud', [{ provider: 'codex', quotaId: 'w', name: '<w>', window: 'weekly', remainingFraction: 0.5, resetsAt: 'nope' }], ctx.now()),
+      }),
+    }
+    await send('/actualizar', { providers: [broken] })
+    expect(tg.texts).toHaveLength(2)
+    expect(tg.texts[1]).toMatch(/^No he podido actualizar: \S/)
+    expect(tg.texts[1]!.length).toBeLessThanOrEqual(230)
   })
 
   it('/actualizar reports a busy evaluation', async () => {

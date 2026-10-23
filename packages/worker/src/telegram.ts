@@ -141,7 +141,19 @@ async function unmute(env: Env, args: string[]): Promise<string> {
   return `🔔 ${escapeHtml(PROVIDER_LABELS[provider])} activado`
 }
 
+const MAX_REFRESH_ERROR = 200
+
 async function refresh(env: Env, now: Date, deps: CronDeps): Promise<void> {
+  try {
+    await refreshNow(env, now, deps)
+  } catch (err) {
+    console.error('refresh failed', err)
+    const message = (err instanceof Error ? err.message : String(err)).slice(0, MAX_REFRESH_ERROR)
+    await sendMessage(env, `No he podido actualizar: ${escapeHtml(message)}`, deps.fetch)
+  }
+}
+
+async function refreshNow(env: Env, now: Date, deps: CronDeps): Promise<void> {
   const readings = await runCloudProviders(env, now, deps)
   if (!(await processReadings(env, readings, now, deps))) {
     await sendMessage(env, 'Ya hay una actualización en curso, prueba en un minuto', deps.fetch)
