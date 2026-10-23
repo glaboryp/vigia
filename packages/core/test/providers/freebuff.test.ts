@@ -138,4 +138,25 @@ describe('freebuffProvider', () => {
     const { reading } = await freebuffProvider.read(ctx('t', fetchFn))
     expect(reading).toMatchObject({ ok: false, error: { kind: 'network' } })
   })
+
+  it('keeps the subscription when free windows are malformed', async () => {
+    const sub = (await import('./helpers.js')).fixture('freebuff/synthetic-session.json') as { subscription: unknown }
+    const fetchFn = mockFetch(() => jsonResponse({ freeWindows: { monthUsed: 'x' }, subscription: sub.subscription }))
+    const { reading } = await freebuffProvider.read(ctx('t', fetchFn))
+    expect(reading.ok && reading.quotas.map((q) => q.quotaId)).toEqual(['subscription-month'])
+  })
+
+  it('keeps the free month when the subscription has no reset date', async () => {
+    const subscription = { tierId: 'pro', usage: { monthUsed: 1, monthLimit: 10 } }
+    const fetchFn = mockFetch(() => jsonResponse({ freeWindows: FREE, subscription }))
+    const { reading } = await freebuffProvider.read(ctx('t', fetchFn))
+    expect(reading.ok && reading.quotas.map((q) => q.quotaId)).toEqual(['free-month'])
+  })
+
+  it('is a parse error when the subscription has no reset date and nothing else is usable', async () => {
+    const subscription = { tierId: 'pro', usage: { monthUsed: 1, monthLimit: 10 } }
+    const fetchFn = mockFetch(() => jsonResponse({ subscription }))
+    const { reading } = await freebuffProvider.read(ctx('t', fetchFn))
+    expect(reading).toMatchObject({ ok: false, error: { kind: 'parse' } })
+  })
 })

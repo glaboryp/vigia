@@ -79,22 +79,33 @@ async function readQuotas(ctx: { fetch: typeof fetch }, pat: string): Promise<Qu
   const v3 = await authed(ctx, STATUS_URL, jobToken)
   const v3Kind = classifyHttp(v3.status)
   if (v3Kind === 'auth' || v3Kind === 'network') throw new ProviderError(v3Kind, `Qoder status HTTP ${v3.status}`)
-  let parsed: Parsed = v3Kind ? {} : parseStatus(v3.body)
-
-  if (parsed.total === undefined || parsed.resetsAt === undefined) {
-    const v2 = await authed(ctx, USAGE_URL, jobToken)
-    const v2Kind = classifyHttp(v2.status)
-    if (v2Kind === 'auth' || v2Kind === 'network') throw new ProviderError(v2Kind, `Qoder usage HTTP ${v2.status}`)
-    if (!v2Kind) {
-      const fallback = parseStatus(v2.body)
-      parsed = { ...(parsed.total !== undefined ? parsed : fallback), resetsAt: parsed.resetsAt ?? fallback.resetsAt }
+  let parsed: Parsed = {}
+  if (!v3Kind) {
+    try {
+      parsed = parseStatus(v3.body)
+    } catch (err) {
+      if (!(err instanceof ProviderError) || err.kind !== 'parse') throw err
     }
   }
 
-  if (parsed.total === undefined || parsed.used === undefined || parsed.remaining === undefined) {
+  if (parsed.total === undefined || parsed.resetsAt === undefined) {
+    const hadTotal = parsed.total !== undefined
+    try {
+      const v2 = await authed(ctx, USAGE_URL, jobToken)
+      const v2Kind = classifyHttp(v2.status)
+      if (v2Kind) throw new ProviderError(v2Kind, `Qoder usage HTTP ${v2.status}`)
+      const fallback = parseStatus(v2.body)
+      parsed = { ...(hadTotal ? parsed : fallback), resetsAt: parsed.resetsAt ?? fallback.resetsAt }
+    } catch (err) {
+      if (hadTotal) throw new ProviderError('parse', 'Sin fecha de renovación')
+      throw err
+    }
+  }
+
+  if (parsed.total === undefined || parsed.used === undefined || parsed.remaining === undefined || parsed.total <= 0) {
     throw new ProviderError('unavailable', 'Qoder no devolvió cuota')
   }
-  if (parsed.resetsAt === undefined) throw new ProviderError('parse', 'Qoder quota has no reset date')
+  if (parsed.resetsAt === undefined) throw new ProviderError('parse', 'Sin fecha de renovación')
 
   return [
     {
@@ -102,7 +113,7 @@ async function readQuotas(ctx: { fetch: typeof fetch }, pat: string): Promise<Qu
       quotaId: 'plan',
       name: 'Qoder',
       window: 'monthly',
-      remainingFraction: parsed.total > 0 ? clampFraction(parsed.remaining / parsed.total) : 0,
+      remainingFraction: clampFraction(parsed.remaining / parsed.total),
       remaining: parsed.remaining,
       total: parsed.total,
       unit: 'créditos',

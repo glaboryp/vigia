@@ -148,3 +148,34 @@ describe('qoderProvider', () => {
     expect(reading).toMatchObject({ ok: false, error: { kind: 'network' } })
   })
 })
+
+describe('qoderProvider hardening', () => {
+  const noReset = () => jsonResponse(fixture('qoder/synthetic-status-v3-no-reset.json'))
+
+  it('is unavailable when the plan total is zero', async () => {
+    const body = { data: { totalQuota: { quotaSummary: { usedValue: 0, limitValue: 0, remainingValue: 0 } }, nextResetAt: 1793491200000 } }
+    const fetchFn = route({ [EXCHANGE]: exchangeOk, [V3]: () => jsonResponse(body) })
+    const { reading } = await qoderProvider.read(ctx(CRED, fetchFn))
+    expect(reading).toMatchObject({ ok: false, error: { kind: 'unavailable' } })
+  })
+
+  it.each([
+    ['401', () => jsonResponse({}, 401)],
+    ['503', () => jsonResponse({}, 503)],
+    ['non-JSON', () => jsonResponse('<html>', 200)],
+  ])('returns parse when v3 has a total but no reset and v2 fails (%s)', async (_n, v2) => {
+    const fetchFn = route({ [EXCHANGE]: exchangeOk, [V3]: noReset, [V2]: v2 })
+    const { reading } = await qoderProvider.read(ctx(CRED, fetchFn))
+    expect(reading).toMatchObject({ ok: false, error: { kind: 'parse', message: 'Sin fecha de renovación' } })
+  })
+
+  it('falls through to v2 when v3 returns a non-object 200 body', async () => {
+    const fetchFn = route({
+      [EXCHANGE]: exchangeOk,
+      [V3]: () => jsonResponse('[1,2]'),
+      [V2]: () => jsonResponse(fixture('qoder/synthetic-usage-v2.json')),
+    })
+    const { reading } = await qoderProvider.read(ctx(CRED, fetchFn))
+    expect(reading.ok && reading.quotas[0]).toMatchObject({ total: 200, resetsAt: '2026-11-20T00:00:00.000Z' })
+  })
+})

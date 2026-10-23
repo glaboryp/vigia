@@ -50,7 +50,7 @@ export const copilotProvider: Provider<string> = {
       const { status, body } = await fetchJson(ctx, USER_URL, {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${ctx.credential}`,
+          Authorization: `token ${ctx.credential}`,
           Accept: 'application/json',
           'User-Agent': 'VigIA',
           'Editor-Version': 'vscode/1.96.2',

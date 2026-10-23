@@ -45,7 +45,7 @@ describe('copilotProvider', () => {
     const [url, init] = fetchFn.mock.calls[0]!
     expect(String(url)).toBe(USER_URL)
     const headers = new Headers(init!.headers)
-    expect(headers.get('authorization')).toBe('Bearer gho_abc')
+    expect(headers.get('authorization')).toBe('token gho_abc')
     expect(headers.get('accept')).toBe('application/json')
     expect(headers.get('user-agent')).toBe('VigIA')
     expect(headers.get('editor-version')).toBeTruthy()

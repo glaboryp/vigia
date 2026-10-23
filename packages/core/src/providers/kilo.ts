@@ -3,12 +3,12 @@ import type { Quota } from '../types.js'
 import { okReading, type Provider } from './contract.js'
 import { clampFraction, isRecord, pick, pickNumber, toIso, type JsonRecord } from './util.js'
 
-const URL_BASE = 'https://api.kilo.ai/api/trpc/kiloPass.getState'
+const URL_BASE = 'https://app.kilo.ai/api/trpc/kiloPass.getState'
 const ACTIVE_STATUSES = new Set(['active', 'trialing', 'past_due'])
 const NO_PASS = 'Sin Kilo Pass activo'
 
 function buildUrl(): string {
-  return `${URL_BASE}?batch=1&input=${encodeURIComponent(JSON.stringify({ 0: null }))}`
+  return `${URL_BASE}?batch=1&input=${encodeURIComponent(JSON.stringify({ 0: { json: null, meta: { values: ['undefined'] } } }))}`
 }
 
 function extractState(body: unknown): unknown {

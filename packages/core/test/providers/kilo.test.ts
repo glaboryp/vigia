@@ -50,10 +50,10 @@ describe('kiloProvider', () => {
     })
     const [url, init] = fetchFn.mock.calls[0]!
     const parsed = new URL(String(url))
-    expect(parsed.origin + parsed.pathname).toBe('https://api.kilo.ai/api/trpc/kiloPass.getState')
+    expect(parsed.origin + parsed.pathname).toBe('https://app.kilo.ai/api/trpc/kiloPass.getState')
     expect(parsed.searchParams.get('batch')).toBe('1')
-    expect(parsed.searchParams.get('input')).toBe('{"0":null}')
-    expect(String(url)).toContain('input=%7B%220%22%3Anull%7D')
+    expect(JSON.parse(parsed.searchParams.get('input')!)).toEqual({ 0: { json: null, meta: { values: ['undefined'] } } })
+    expect(String(url)).toContain(encodeURIComponent('{"0":{"json":null,"meta":{"values":["undefined"]}}}'))
     expect(new Headers(init!.headers).get('authorization')).toBe('Bearer tok')
     expect(init!.method ?? 'GET').toBe('GET')
   })

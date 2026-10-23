@@ -60,6 +60,7 @@ function subscriptionQuotas(sub: JsonRecord): Quota[] {
   const usage = sub.usage
   if (sub.tierId === null || sub.tierId === undefined || !isRecord(usage)) return []
   const resetsAt = toIso(pick(usage, 'periodEndsAt')) ?? toIso(pick(sub, 'renewsAt'))
+  if (resetsAt === undefined) throw new ProviderError('parse', 'Sin fecha de renovación')
   const month = windowQuota(
     'subscription-month',
     'Freebuff (suscripción)',
@@ -73,11 +74,24 @@ function subscriptionQuotas(sub: JsonRecord): Quota[] {
 
 function parseQuotas(body: unknown): Quota[] {
   if (!isRecord(body)) throw new ProviderError('parse', 'Unexpected Freebuff response')
-  const free = body.freeWindows
-  const sub = body.subscription
-  const quotas = [...(isRecord(free) ? freeQuotas(free) : []), ...(isRecord(sub) ? subscriptionQuotas(sub) : [])]
-  if (quotas.length === 0) throw new ProviderError('unavailable', 'Freebuff no devolvió cuotas')
-  return quotas
+  const quotas: Quota[] = []
+  const errors: ProviderError[] = []
+  const attempts: [unknown, (v: JsonRecord) => Quota[]][] = [
+    [body.freeWindows, freeQuotas],
+    [body.subscription, subscriptionQuotas],
+  ]
+  for (const [value, parse] of attempts) {
+    if (!isRecord(value)) continue
+    try {
+      quotas.push(...parse(value))
+    } catch (err) {
+      if (!(err instanceof ProviderError)) throw err
+      errors.push(err)
+    }
+  }
+  if (quotas.length > 0) return quotas
+  if (errors.length > 0) throw errors[0]!
+  throw new ProviderError('unavailable', 'Freebuff no devolvió cuotas')
 }
 
 export const freebuffProvider: Provider<string> = {
