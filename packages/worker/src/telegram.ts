@@ -12,6 +12,15 @@ import { Repo, type StoredHealth, type StoredQuota } from './db.js'
 import type { Env } from './env.js'
 import { processReadings } from './pipeline.js'
 
+const MAX_TEXT = 4000
+
+export function fitTelegram(text: string): string {
+  if (text.length <= MAX_TEXT) return text
+  const cut = text.slice(0, MAX_TEXT)
+  const lineEnd = cut.lastIndexOf('\n')
+  return `${lineEnd > 0 ? cut.slice(0, lineEnd) : cut}\n…`
+}
+
 export async function sendMessage(
   env: Env,
   text: string,
@@ -26,14 +35,16 @@ export async function sendMessage(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         chat_id: env.TELEGRAM_CHAT_ID,
-        text,
+        text: fitTelegram(text),
         parse_mode: 'HTML',
         disable_web_page_preview: true,
       }),
     })
     await res.body?.cancel()
+    if (!res.ok) console.error(`telegram send failed: HTTP ${res.status}`)
     return res.ok
-  } catch {
+  } catch (err) {
+    console.error(`telegram send failed: ${err instanceof Error ? err.name : 'error'}`)
     return false
   }
 }

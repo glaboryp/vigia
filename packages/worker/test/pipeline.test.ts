@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderId, ProviderReading, Quota } from 'core'
 import { Repo } from '../src/db.js'
 import { processReadings } from '../src/pipeline.js'
@@ -56,6 +56,34 @@ describe('sendMessage', () => {
         body: { chat_id: '42', text: 'hola', parse_mode: 'HTML', disable_web_page_preview: true },
       },
     ])
+  })
+
+  it('truncates text over 4000 characters at a line boundary', async () => {
+    const line = 'a'.repeat(99)
+    const text = Array.from({ length: 60 }, () => line).join('\n')
+    expect(await sendMessage(testEnv, text, tg.fetch)).toBe(true)
+    const sent = tg.texts[0]!
+    expect(sent.length).toBeLessThanOrEqual(4002)
+    expect(sent.endsWith(`${line}\n…`)).toBe(true)
+    expect(sent.slice(0, -2).split('\n').every((l) => l === line)).toBe(true)
+  })
+
+  it('leaves text up to 4000 characters untouched', async () => {
+    const text = 'b'.repeat(4000)
+    await sendMessage(testEnv, text, tg.fetch)
+    expect(tg.texts).toEqual([text])
+  })
+
+  it('logs failed sends without leaking the bot token', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    tg.status = 429
+    await sendMessage(testEnv, 'hola', tg.fetch)
+    tg.fail = true
+    await sendMessage(testEnv, 'hola', tg.fetch)
+    expect(error).toHaveBeenCalledTimes(2)
+    expect(JSON.stringify(error.mock.calls)).not.toContain(testEnv.TELEGRAM_BOT_TOKEN)
+    expect(String(error.mock.calls[0]![0])).toContain('429')
+    error.mockRestore()
   })
 
   it('returns false on non-2xx', async () => {
