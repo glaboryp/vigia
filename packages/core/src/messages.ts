@@ -23,6 +23,11 @@ const PROVIDER_ORDER = Object.keys(PROVIDER_LABELS) as ProviderId[]
 
 export const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+const MAX_ERROR_CHARS = 200
+
+export const shortError = (message: string): string =>
+  message.length > MAX_ERROR_CHARS ? `${message.slice(0, MAX_ERROR_CHARS)}…` : message
+
 function displayName(q: TrackedQuota, siblings: number): string {
   const label = escapeHtml(PROVIDER_LABELS[q.provider])
   const name = escapeHtml(q.name)
@@ -72,7 +77,7 @@ export function renewedMessage(q: TrackedQuota): string {
 export function brokenMessage(h: ProviderHealth): string {
   const label = escapeHtml(PROVIDER_LABELS[h.provider])
   const hint = escapeHtml(FIX_HINTS[h.provider]).replace(/`([^`]+)`/g, '<code>$1</code>')
-  const error = h.lastError ? `\nÚltimo error: ${escapeHtml(h.lastError.message)}` : ''
+  const error = h.lastError ? `\nÚltimo error: ${escapeHtml(shortError(h.lastError.message))}` : ''
   return `⚠️ <b>No puedo leer ${label}</b>${error}\n${hint}`
 }
 
@@ -87,7 +92,7 @@ export function statusMessage(quotas: TrackedQuota[], health: ProviderHealth[], 
     const own = quotas.filter((q) => q.provider === provider)
     const h = healthBy.get(provider)
     if (h?.lastError && h.brokenNotified) {
-      lines.push(`• <b>${escapeHtml(PROVIDER_LABELS[provider])}</b> — ⚠️ no puedo leerlo: ${escapeHtml(h.lastError.message)}`)
+      lines.push(`• <b>${escapeHtml(PROVIDER_LABELS[provider])}</b> — ⚠️ no puedo leerlo: ${escapeHtml(shortError(h.lastError.message))}`)
       continue
     }
     const source: Source = LOCAL_BY_DEFAULT.includes(provider) ? 'local' : 'cloud'

@@ -101,6 +101,16 @@ describe('brokenMessage and recoveredMessage', () => {
     `)
   })
 
+  it('truncates long error messages to 200 characters', () => {
+    const long = 'x'.repeat(500)
+    const h: ProviderHealth = { provider: 'cursor', consecutiveFailures: 3, lastError: { kind: 'parse', message: long }, brokenNotified: true }
+    expect(brokenMessage(h)).toContain(`Último error: ${'x'.repeat(200)}…\n`)
+    expect(brokenMessage(h)).not.toContain('x'.repeat(201))
+    const status = statusMessage([], [h], now)
+    expect(status).toContain(`no puedo leerlo: ${'x'.repeat(200)}…`)
+    expect(status).not.toContain('x'.repeat(201))
+  })
+
   it('has a hint for every provider', () => {
     for (const p of Object.keys(PROVIDER_LABELS) as ProviderId[]) expect(FIX_HINTS[p].length).toBeGreaterThan(0)
   })

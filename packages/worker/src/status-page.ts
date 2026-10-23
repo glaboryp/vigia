@@ -4,6 +4,7 @@ import {
   formatRelative,
   isStale,
   PROVIDER_LABELS,
+  shortError,
   type findSurplus,
   type PeriodClose,
   type ProviderId,
@@ -91,7 +92,7 @@ function currentSection(data: StatusPageData): string {
     const source = quotas[0]?.source ?? 'cloud'
     const badges: string[] = []
     if (health?.lastError && health.brokenNotified) {
-      badges.push(`<span class="badge bad">no puedo leerlo: ${escapeHtml(health.lastError.message)}</span>`)
+      badges.push(`<span class="badge bad">no puedo leerlo: ${escapeHtml(shortError(health.lastError.message))}</span>`)
     }
     if (health && isStale(health, source, data.now)) badges.push('<span class="badge warn">desactualizado</span>')
     const body = quotas.length === 0 ? '<div class="muted">Sin datos todavía</div>' : quotas.map((q) => quotaHtml(q, data.now)).join('\n')
