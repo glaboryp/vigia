@@ -1,0 +1,9 @@
+{
+  "_synthetic": true,
+  "data": {
+    "plan": "pro",
+    "totalQuota": { "quotaSummary": { "usedValue": 50, "limitValue": 200, "remainingValue": 150, "unit": "credits" } },
+    "sharedQuota": { "quotaSummary": { "usedValue": 25, "limitValue": 100, "remainingValue": 75, "unit": "credits" } },
+    "nextResetAt": 1793491200000
+  }
+}

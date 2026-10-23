@@ -1,0 +1,6 @@
+{
+  "_synthetic": true,
+  "data": {
+    "totalQuota": { "quotaSummary": { "usedValue": 50, "limitValue": 200, "remainingValue": 150 } }
+  }
+}
