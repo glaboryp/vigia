@@ -99,8 +99,9 @@ describe('readings', () => {
 })
 
 describe('registry', () => {
-  it('starts empty', () => {
-    expect(CLOUD_PROVIDERS).toEqual([])
+  it('exposes provider lists', () => {
+    expect(Array.isArray(CLOUD_PROVIDERS)).toBe(true)
+    expect(CLOUD_PROVIDERS.every((p) => p.source === 'cloud')).toBe(true)
     expect(LOCAL_HTTP_PROVIDERS).toEqual([])
   })
 })
