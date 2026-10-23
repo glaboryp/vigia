@@ -102,7 +102,7 @@ describe('registry', () => {
   it('exposes provider lists', () => {
     expect(Array.isArray(CLOUD_PROVIDERS)).toBe(true)
     expect(CLOUD_PROVIDERS.every((p) => p.source === 'cloud')).toBe(true)
-    expect(LOCAL_HTTP_PROVIDERS).toEqual([])
+    expect(LOCAL_HTTP_PROVIDERS.every((p) => p.source === 'local')).toBe(true)
   })
 })
 
