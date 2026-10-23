@@ -21,7 +21,7 @@ const LOCAL_BY_DEFAULT: ProviderId[] = ['antigravity', 'mimo', 'opencode']
 const OLD_DATA_MS = 6 * 3_600_000
 const PROVIDER_ORDER = Object.keys(PROVIDER_LABELS) as ProviderId[]
 
-const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+export const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 function displayName(q: TrackedQuota, siblings: number): string {
   const label = escapeHtml(PROVIDER_LABELS[q.provider])

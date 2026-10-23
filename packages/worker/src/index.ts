@@ -1,16 +1,11 @@
 import { Hono } from 'hono'
+import { secretMatches } from './auth.js'
 import { runScheduled, type CronDeps } from './cron.js'
 import { Repo } from './db.js'
 import type { Env } from './env.js'
 import { processReadings } from './pipeline.js'
+import { handleUpdate } from './telegram.js'
 import { parseIngestBody } from './validate.js'
-
-async function tokenMatches(header: string | undefined, expected: string): Promise<boolean> {
-  if (!expected || !header?.startsWith('Bearer ')) return false
-  const digest = (s: string) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
-  const [a, b] = await Promise.all([digest(header.slice('Bearer '.length)), digest(expected)])
-  return crypto.subtle.timingSafeEqual(a, b)
-}
 
 export function createWorker(deps: CronDeps = {}) {
   const app = new Hono<{ Bindings: Env }>()
@@ -18,7 +13,9 @@ export function createWorker(deps: CronDeps = {}) {
   app.get('/health', (c) => c.text('ok'))
 
   app.post('/ingest', async (c) => {
-    if (!(await tokenMatches(c.req.header('authorization'), c.env.INGEST_TOKEN))) return c.body(null, 401)
+    const authorization = c.req.header('authorization')
+    const bearer = authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : undefined
+    if (!(await secretMatches(bearer, c.env.INGEST_TOKEN))) return c.body(null, 401)
     const now = new Date()
     const body = parseIngestBody(await c.req.json().catch(() => undefined), now)
     if (body === null) return c.body(null, 400)
@@ -26,6 +23,15 @@ export function createWorker(deps: CronDeps = {}) {
     const repo = new Repo(c.env.DB, c.env.CREDENTIALS_KEY)
     for (const cred of body.credentials) await repo.putCredential(cred.provider, cred.value)
     return c.body(null, 204)
+  })
+
+  app.post('/telegram', async (c) => {
+    if (!(await secretMatches(c.req.header('x-telegram-bot-api-secret-token'), c.env.TELEGRAM_WEBHOOK_SECRET))) {
+      return c.body(null, 401)
+    }
+    const update: unknown = await c.req.json().catch(() => undefined)
+    c.executionCtx.waitUntil(handleUpdate(c.env, update, new Date(), c.executionCtx, deps).catch((err) => console.error('telegram update failed', err)))
+    return c.body(null, 200)
   })
 
   return {
