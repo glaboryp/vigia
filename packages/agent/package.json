@@ -6,7 +6,8 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "test": "vitest run",
-    "capture": "tsx src/capture.ts"
+    "capture": "tsx src/capture.ts",
+    "start": "tsx src/main.ts"
   },
   "dependencies": {
     "core": "workspace:*"
