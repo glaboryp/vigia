@@ -10,7 +10,7 @@ import {
   type ProviderId,
   type ProviderReading,
 } from 'core'
-import { readAntigravity } from './antigravity.js'
+import { readAntigravity, type Runner } from './antigravity.js'
 import { BRAVE_COOKIE_HOSTS, getBraveCookieHeader, keyringPassword } from './brave-cookies.js'
 import { loadConfig, type AgentConfig } from './config.js'
 import { IngestError, postIngest } from './ingest-client.js'
@@ -29,6 +29,8 @@ export interface RunDeps {
   readCursorToken?: () => Promise<string | null>
   localReaders?: LocalReader[]
   localHttpProviders?: Provider<any>[]
+  braveProfileDir?: string
+  secretToolRun?: Runner
   braveCookieHeader?: (host: string) => Promise<string | null>
   log?: (message: string) => void
   logError?: (message: string) => void
@@ -54,7 +56,10 @@ export async function runOnce(cfg: AgentConfig, deps: RunDeps = {}): Promise<num
     }
   }
 
-  const cookieFor = deps.braveCookieHeader ?? ((host: string) => getBraveCookieHeader(host, { password: keyringPassword() }))
+  const password = keyringPassword(deps.secretToolRun)
+  const cookieFor =
+    deps.braveCookieHeader ??
+    ((host: string) => getBraveCookieHeader(host, { password, profileDir: deps.braveProfileDir }))
   for (const provider of deps.localHttpProviders ?? LOCAL_HTTP_PROVIDERS) {
     if (cfg.disabled.includes(provider.id)) continue
     const host = BRAVE_COOKIE_HOSTS[provider.id]

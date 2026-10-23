@@ -142,3 +142,30 @@ describe('runOnce with local HTTP providers', () => {
     expect(body.readings[0]).toMatchObject({ provider: 'mimo', ok: false, error: { kind: 'auth', message: 'No puedo acceder al llavero de GNOME' } })
   })
 })
+
+describe('runOnce keyring caching', () => {
+  it('asks the keyring once for several v11 hosts', async () => {
+    const { createCipheriv, pbkdf2Sync, createHash } = await import('node:crypto')
+    const { DatabaseSync } = await import('node:sqlite')
+    const { mkdir } = await import('node:fs/promises')
+    const enc = (v: string, host: string) => {
+      const c = createCipheriv('aes-128-cbc', pbkdf2Sync('pw', 'saltysalt', 1, 16, 'sha1'), Buffer.alloc(16, 0x20))
+      return Buffer.concat([Buffer.from('v11'), c.update(Buffer.concat([createHash('sha256').update(host).digest(), Buffer.from(v)])), c.final()])
+    }
+    const profile = join(dir, 'Default')
+    await mkdir(profile)
+    const db = new DatabaseSync(join(profile, 'Cookies'))
+    db.exec('CREATE TABLE meta (key TEXT UNIQUE NOT NULL, value TEXT)')
+    db.exec('CREATE TABLE cookies (host_key TEXT, name TEXT, value TEXT, encrypted_value BLOB, expires_utc INTEGER)')
+    db.prepare('INSERT INTO meta VALUES (?, ?)').run('version', '24')
+    const ins = db.prepare('INSERT INTO cookies VALUES (?, ?, ?, ?, 0)')
+    ins.run('platform.xiaomimimo.com', 'a', '', enc('1', 'platform.xiaomimimo.com'))
+    ins.run('opencode.ai', 'b', '', enc('2', 'opencode.ai'))
+    db.close()
+    const run = vi.fn(async () => ({ code: 0, stdout: 'pw\n', stderr: '' }))
+    const fetchFn = vi.fn(async () => new Response(null, { status: 204 }))
+    const { d } = deps({ fetch: fetchFn, localReaders: [], localHttpProviders: LOCAL_HTTP_PROVIDERS, braveProfileDir: profile, secretToolRun: run })
+    await runOnce(cfg, d)
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+})

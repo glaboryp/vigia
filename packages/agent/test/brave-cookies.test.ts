@@ -1,5 +1,5 @@
 import { createCipheriv, createHash, pbkdf2Sync } from 'node:crypto'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -86,8 +86,62 @@ describe('getBraveCookieHeader', () => {
     expect(await getBraveCookieHeader('opencode.ai', { dbPath, run: secretTool(PASSWORD), now: () => NOW })).toBeNull()
   })
 
-  it('returns null when the Cookies database does not exist', async () => {
-    expect(await getBraveCookieHeader('opencode.ai', { dbPath: join(dir, 'missing'), run: secretTool(PASSWORD) })).toBeNull()
+  it('fails with auth when no Brave profile exists', async () => {
+    await expect(getBraveCookieHeader('opencode.ai', { profileDir: join(dir, 'nope'), run: secretTool(PASSWORD) })).rejects.toMatchObject({
+      kind: 'auth',
+      message: 'No encuentro el perfil de Brave',
+    })
+  })
+
+  it('prefers Network/Cookies over Cookies in the profile dir', async () => {
+    await mkdir(join(dir, 'Network'))
+    makeDb(24, [{ host: 'opencode.ai', name: 'old', value: 'legacy' }])
+    dbPath = join(dir, 'Network', 'Cookies')
+    makeDb(24, [{ host: 'opencode.ai', name: 'new', value: 'net' }])
+    expect(await getBraveCookieHeader('opencode.ai', { profileDir: dir, now: () => NOW })).toBe('new=net')
+  })
+
+  it('falls back to Cookies when Network/Cookies is missing', async () => {
+    makeDb(24, [{ host: 'opencode.ai', name: 'old', value: 'legacy' }])
+    expect(await getBraveCookieHeader('opencode.ai', { profileDir: dir, now: () => NOW })).toBe('old=legacy')
+  })
+
+  it('does not match lookalike hosts, TLDs or bare parent host-only cookies', async () => {
+    makeDb(24, [
+      { host: 'notopencode.ai', name: 'a', value: '1' },
+      { host: '.ai', name: 'b', value: '2' },
+      { host: 'sub.opencode.ai', name: 'c', value: '3' },
+      { host: 'xiaomimimo.com', name: 'd', value: '4' },
+    ])
+    expect(await getBraveCookieHeader('opencode.ai', { dbPath, now: () => NOW })).toBeNull()
+    expect(await getBraveCookieHeader('platform.xiaomimimo.com', { dbPath, now: () => NOW })).toBeNull()
+  })
+
+  it('skips an undecryptable cookie and keeps the rest', async () => {
+    const good = encrypt('ok', 'opencode.ai', { prefix: 'v11', password: PASSWORD, hashed: true })
+    const bad = Buffer.concat([Buffer.from('v11'), Buffer.alloc(32, 7)])
+    makeDb(24, [
+      { host: 'opencode.ai', name: 'bad', enc: bad },
+      { host: 'opencode.ai', name: 'good', enc: good },
+    ])
+    expect(await getBraveCookieHeader('opencode.ai', { dbPath, run: secretTool(PASSWORD), now: () => NOW })).toBe('good=ok')
+  })
+
+  it('fails with parse when every encrypted cookie is undecryptable', async () => {
+    makeDb(24, [{ host: 'opencode.ai', name: 'bad', enc: Buffer.concat([Buffer.from('v11'), Buffer.alloc(32, 7)]) }])
+    await expect(getBraveCookieHeader('opencode.ai', { dbPath, run: secretTool(PASSWORD), now: () => NOW })).rejects.toMatchObject({ kind: 'parse' })
+  })
+
+  it('decrypts a v10 cookie with the hash prefix when version >= 24', async () => {
+    makeDb(25, [{ host: 'opencode.ai', name: 'k', enc: encrypt('v', 'opencode.ai', { prefix: 'v10', password: 'peanuts', hashed: true }) }])
+    expect(await getBraveCookieHeader('opencode.ai', { dbPath, run: secretTool('', 1), now: () => NOW })).toBe('k=v')
+  })
+
+  it('fails with parse when the meta table is missing', async () => {
+    const db = new DatabaseSync(dbPath)
+    db.exec('CREATE TABLE cookies (host_key TEXT, name TEXT, value TEXT, encrypted_value BLOB, expires_utc INTEGER)')
+    db.close()
+    await expect(getBraveCookieHeader('opencode.ai', { dbPath, now: () => NOW })).rejects.toMatchObject({ kind: 'parse' })
   })
 
   it('fails with auth when secret-tool is not installed', async () => {
