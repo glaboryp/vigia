@@ -24,17 +24,18 @@ export function findSurplus(
   closes: PeriodClose[],
   cfg: SurplusConfig,
 ): { provider: ProviderId; quotaId: string; avgUsed: number }[] {
-  const groups = new Map<string, PeriodClose[]>()
+  const groups = new Map<string, Map<string, PeriodClose>>()
   for (const c of closes) {
     if (c.window !== 'monthly' || !cfg.paidProviders.includes(c.provider)) continue
     const key = `${c.provider}\u0000${c.quotaId}`
-    const group = groups.get(key)
-    if (group) group.push(c)
-    else groups.set(key, [c])
+    const group = groups.get(key) ?? new Map<string, PeriodClose>()
+    group.set(c.periodResetAt, c)
+    groups.set(key, group)
   }
 
   const result: { provider: ProviderId; quotaId: string; avgUsed: number }[] = []
-  for (const group of groups.values()) {
+  for (const byPeriod of groups.values()) {
+    const group = [...byPeriod.values()]
     if (group.length < cfg.periods) continue
     const recent = group
       .sort((a, b) => Date.parse(a.periodResetAt) - Date.parse(b.periodResetAt))

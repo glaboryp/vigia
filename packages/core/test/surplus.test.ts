@@ -36,8 +36,12 @@ describe('findSurplus', () => {
     expect(findSurplus([close(0.2, 7), close(0.3, 8)], DEFAULT_SURPLUS_CONFIG)).toEqual([])
   })
   it('uses only the most recent closes, sorted by period', () => {
-    const closes = [close(0.9, 4), close(0.3, 8), close(0.2, 6), close(0.1, 7)]
+    const closes = [close(0.2, 6), close(0.1, 7), close(0.3, 8), close(0.9, 4)]
     expect(findSurplus(closes, DEFAULT_SURPLUS_CONFIG)).toHaveLength(1)
+  })
+  it('counts a duplicated close row once', () => {
+    const closes = [close(0.2, 7), close(0.2, 7), close(0.3, 8)]
+    expect(findSurplus(closes, DEFAULT_SURPLUS_CONFIG)).toEqual([])
   })
   it('never flags freebuff', () => {
     const closes = [6, 7, 8].map((m) => close(0.1, m, { provider: 'freebuff' }))

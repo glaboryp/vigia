@@ -1,6 +1,6 @@
 import type { Quota, Window } from './types.js'
 
-const HOUR_MS = 3_600_000
+export const HOUR_MS = 3_600_000
 
 export const WINDOW_MS: Record<Window, number> = {
   '5h': 5 * HOUR_MS,

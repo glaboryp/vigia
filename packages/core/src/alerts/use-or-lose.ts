@@ -1,4 +1,4 @@
-import { periodKey } from '../period.js'
+import { HOUR_MS, periodKey } from '../period.js'
 import { sortByPriority } from '../priority.js'
 import type { Quota, Window } from '../types.js'
 
@@ -6,8 +6,6 @@ export interface TrackedQuota extends Quota {
   periodResetAt: string
   readAt: string
 }
-
-const HOUR_MS = 3_600_000
 
 export const USE_OR_LOSE_LEAD_MS: Partial<Record<Window, number>> = {
   weekly: 24 * HOUR_MS,
