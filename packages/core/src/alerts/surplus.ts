@@ -26,7 +26,7 @@ export function findSurplus(
 ): { provider: ProviderId; quotaId: string; avgUsed: number }[] {
   const groups = new Map<string, Map<string, PeriodClose>>()
   for (const c of closes) {
-    if (c.window !== 'monthly' || !cfg.paidProviders.includes(c.provider)) continue
+    if ((c.window !== 'monthly' && c.window !== 'weekly') || !cfg.paidProviders.includes(c.provider)) continue
     const key = `${c.provider}\u0000${c.quotaId}`
     const group = groups.get(key) ?? new Map<string, PeriodClose>()
     group.set(c.periodResetAt, c)

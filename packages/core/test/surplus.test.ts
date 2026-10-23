@@ -47,9 +47,32 @@ describe('findSurplus', () => {
     const closes = [6, 7, 8].map((m) => close(0.1, m, { provider: 'freebuff' }))
     expect(findSurplus(closes, DEFAULT_SURPLUS_CONFIG)).toEqual([])
   })
-  it('ignores non-monthly windows', () => {
-    const closes = [6, 7, 8].map((m) => close(0.1, m, { window: 'weekly' }))
+  it('flags a weekly Codex quota after three underused weeks', () => {
+    const closes = [5, 12, 19].map((d) => ({
+      provider: 'codex' as const,
+      quotaId: 'weekly',
+      window: 'weekly' as const,
+      periodResetAt: `2026-10-${String(d).padStart(2, '0')}T00:00:00.000Z`,
+      usedFraction: 0.2,
+    }))
+    const res = findSurplus(closes, DEFAULT_SURPLUS_CONFIG)
+    expect(res).toEqual([{ provider: 'codex', quotaId: 'weekly', avgUsed: expect.closeTo(0.2, 6) }])
+  })
+  it('ignores 5h and daily windows', () => {
+    const closes = [
+      ...[6, 7, 8].map((m) => close(0.1, m, { window: '5h', quotaId: '5h' })),
+      ...[6, 7, 8].map((m) => close(0.1, m, { window: 'daily', quotaId: 'daily' })),
+    ]
     expect(findSurplus(closes, DEFAULT_SURPLUS_CONFIG)).toEqual([])
+  })
+  it('groups mixed windows per quota', () => {
+    const closes = [
+      ...[6, 7, 8].map((m) => close(0.1, m, { provider: 'codex', quotaId: 'weekly', window: 'weekly' })),
+      ...[6, 7, 8].map((m) => close(0.9, m, { provider: 'codex', quotaId: 'monthly' })),
+      ...[6, 7].map((m) => close(0.1, m, { provider: 'cursor', quotaId: 'weekly', window: 'weekly' })),
+      close(0.1, 8, { provider: 'cursor', quotaId: 'monthly' }),
+    ]
+    expect(findSurplus(closes, DEFAULT_SURPLUS_CONFIG).map((r) => `${r.provider}:${r.quotaId}`)).toEqual(['codex:weekly'])
   })
   it('groups by provider and quota', () => {
     const closes = [
