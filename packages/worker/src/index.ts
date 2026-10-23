@@ -18,7 +18,7 @@ export function createWorker(deps: CronDeps & { jwks?: JWTVerifyGetKey } = {}) {
 
   app.get('/', async (c) => {
     if (!(await verifyAccess(c.req.raw, c.env, deps.jwks ? { jwks: deps.jwks } : {}))) {
-      return c.text('Acceso denegado', 403)
+      return c.text('Acceso denegado', 403, { 'Cache-Control': 'no-store' })
     }
     const repo = new Repo(c.env.DB, c.env.CREDENTIALS_KEY)
     const [quotas, health, closes] = await Promise.all([repo.getCurrentQuotas(), repo.getHealth(), repo.getPeriodCloses()])

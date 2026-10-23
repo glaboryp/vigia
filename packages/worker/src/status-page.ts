@@ -23,8 +23,8 @@ const OLD_DATA_MS = 3_600_000
 const PROVIDERS = Object.keys(PROVIDER_LABELS) as ProviderId[]
 
 const CSS = `
-:root{--bg:#f6f7f9;--card:#fff;--text:#1b1f24;--muted:#5d6672;--line:#dde1e6;--ok:#2f9e5b;--warn:#d98a00;--bad:#d1453b;--track:#e6e9ee;--badge-bg:#eef0f3}
-@media (prefers-color-scheme: dark){:root{--bg:#111418;--card:#1a1e24;--text:#e8eaed;--muted:#9aa4b0;--line:#2b313a;--ok:#4cc27f;--warn:#f0a82b;--bad:#f06a60;--track:#2b313a;--badge-bg:#262c34}}
+:root{color-scheme:light dark;--bg:#f6f7f9;--card:#fff;--text:#1b1f24;--muted:#5d6672;--line:#dde1e6;--ok:#2f9e5b;--warn:#d98a00;--bad:#d1453b;--track:#e6e9ee;--badge-bg:#eef0f3;--bad-text:#a8231a;--warn-text:#8a5300;--muted-bar:#9aa1ab}
+@media (prefers-color-scheme: dark){:root{--bg:#111418;--card:#1a1e24;--text:#e8eaed;--muted:#9aa4b0;--line:#2b313a;--ok:#4cc27f;--warn:#f0a82b;--bad:#f06a60;--track:#2b313a;--badge-bg:#262c34;--bad-text:#ff8f86;--warn-text:#f0b03f;--muted-bar:#5b6470}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:720px;margin:0 auto;padding:16px}
@@ -40,9 +40,12 @@ h3{font-size:1rem;margin:0 0 8px}
 .bar.warn>span{background:var(--warn)}
 .bar.bad>span{background:var(--bad)}
 .muted{color:var(--muted);font-size:.9rem}
-.badge{display:inline-block;background:var(--badge-bg);border-radius:999px;padding:1px 8px;font-size:.8rem;margin-left:6px}
-.badge.bad{color:var(--bad)}
-.badge.warn{color:var(--warn)}
+.badge{display:inline-block;background:var(--badge-bg);border-radius:999px;padding:1px 8px;font-size:.8rem;margin:0 6px 4px 0}
+.badge.bad{color:var(--bad-text)}
+.badge.warn{color:var(--warn-text)}
+.bar.pending>span{background:var(--muted-bar)}
+.badges{margin-bottom:8px}
+.badge,strong,td,.muted{overflow-wrap:anywhere}
 .scroll{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:.9rem}
 th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line)}
@@ -63,7 +66,11 @@ function ageText(readAt: string, now: Date): string {
 function quotaHtml(q: StoredQuota, now: Date): string {
   const used = pct(1 - q.remainingFraction)
   const left = pct(q.remainingFraction)
-  const level = left <= 10 ? ' bad' : left <= 25 ? ' warn' : ''
+  const pending = Date.parse(q.resetsAt) <= now.getTime()
+  const level = pending ? ' pending' : left <= 10 ? ' bad' : left <= 25 ? ' warn' : ''
+  const renewal = pending
+    ? 'renovación pendiente de leer'
+    : `se renueva ${escapeHtml(formatMadrid(q.resetsAt))} (${escapeHtml(formatRelative(now.toISOString(), q.resetsAt))})`
   const amount =
     q.remaining !== undefined
       ? ` (${q.remaining}${q.total !== undefined ? ` de ${q.total}` : ''}${q.unit ? ` ${escapeHtml(q.unit)}` : ''})`
@@ -71,8 +78,8 @@ function quotaHtml(q: StoredQuota, now: Date): string {
   const old = now.getTime() - Date.parse(q.readAt) > OLD_DATA_MS
   return `<div class="quota">
 <div class="row"><strong>${escapeHtml(q.name)}</strong><span>${left}% libre · ${used}% usado${amount}</span></div>
-<div class="bar${level}" role="img" aria-label="${used}% usado"><span style="width:${used}%"></span></div>
-<div class="muted">se renueva ${escapeHtml(formatMadrid(q.resetsAt))} (${escapeHtml(formatRelative(now.toISOString(), q.resetsAt))}) · <span${old ? ' class="badge warn"' : ''}>${escapeHtml(ageText(q.readAt, now))}</span></div>
+<div class="bar${level}" role="meter" aria-valuenow="${used}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeHtml(q.name).replace(/"/g, '&quot;')}: ${used}% usado"><span style="width:${used}%"></span></div>
+<div class="muted">${renewal} · <span${old ? ' class="badge warn"' : ''}>${escapeHtml(ageText(q.readAt, now))}</span></div>
 </div>`
 }
 
@@ -83,12 +90,12 @@ function currentSection(data: StatusPageData): string {
     if (quotas.length === 0 && health === undefined) return []
     const source = quotas[0]?.source ?? 'cloud'
     const badges: string[] = []
-    if (health && health.consecutiveFailures > 0 && health.lastError) {
+    if (health?.lastError && health.brokenNotified) {
       badges.push(`<span class="badge bad">no puedo leerlo: ${escapeHtml(health.lastError.message)}</span>`)
     }
     if (health && isStale(health, source, data.now)) badges.push('<span class="badge warn">desactualizado</span>')
     const body = quotas.length === 0 ? '<div class="muted">Sin datos todavía</div>' : quotas.map((q) => quotaHtml(q, data.now)).join('\n')
-    return [`<section class="card"><h3>${escapeHtml(PROVIDER_LABELS[id])}${badges.join('')}</h3>\n${body}</section>`]
+    return [`<section class="card"><h3>${escapeHtml(PROVIDER_LABELS[id])}</h3>\n${badges.length > 0 ? `<div class="badges">${badges.join('')}</div>\n` : ''}${body}</section>`]
   })
   return `<h2>Estado actual</h2>\n${cards.length > 0 ? cards.join('\n') : '<p class="muted">Sin datos todavía</p>'}`
 }

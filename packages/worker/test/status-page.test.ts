@@ -52,6 +52,7 @@ async function fetchPage(jwt?: string): Promise<Response> {
 it('rejects requests without the Access header', async () => {
   const res = await fetchPage()
   expect(res.status).toBe(403)
+  expect(res.headers.get('cache-control')).toBe('no-store')
   expect(await res.text()).toBe('Acceso denegado')
 })
 
@@ -123,6 +124,54 @@ it('shows error and stale badges', () => {
   })
   expect(html).toContain('desactualizado')
   expect(html).toContain('no puedo leerlo')
+})
+
+it('shows the unreadable badge only once the alert fired', () => {
+  const failing = (brokenNotified: boolean) =>
+    renderStatusPage({
+      ...base,
+      quotas: [quota()],
+      health: [{ provider: 'copilot', consecutiveFailures: 1, brokenNotified, lastError: { kind: 'network', message: 'x' } }],
+    })
+  expect(failing(false)).not.toContain('no puedo leerlo')
+  expect(failing(true)).toContain('no puedo leerlo')
+})
+
+it('does not flag a fresh local reading as stale', () => {
+  const html = renderStatusPage({
+    ...base,
+    quotas: [quota({ provider: 'mimo', source: 'local' })],
+    health: [{ provider: 'mimo', consecutiveFailures: 0, brokenNotified: false, lastOkAt: '2026-10-23T09:00:00Z' }],
+  })
+  expect(html).not.toContain('desactualizado')
+})
+
+it('shows pending renewal when resetsAt is in the past', () => {
+  const html = renderStatusPage({ ...base, quotas: [quota({ resetsAt: '2026-10-22T00:00:00Z' })] })
+  expect(html).toContain('renovación pendiente de leer')
+  expect(html).not.toContain('se renueva')
+  expect(html).toContain('class="bar pending"')
+})
+
+it('escapes amount units and exposes the meter', () => {
+  const html = renderStatusPage({ ...base, quotas: [quota({ remaining: 5, total: 20, unit: '<u>req</u>' })] })
+  expect(html).toContain('(5 de 20 &lt;u&gt;req&lt;/u&gt;)')
+  expect(html).not.toContain('<u>')
+  expect(html).toContain('role="meter" aria-valuenow="75"')
+  expect(html).toContain('aria-label="Premium requests: 75% usado"')
+})
+
+it('lists the 12 newest closes newest first', () => {
+  const closes = Array.from({ length: 13 }, (_, i) => ({
+    provider: 'copilot' as const,
+    quotaId: 'premium',
+    window: 'monthly' as const,
+    periodResetAt: new Date(Date.UTC(2025, i, 1)).toISOString(),
+    usedFraction: (i + 1) / 100,
+  }))
+  const html = renderStatusPage({ ...base, closes })
+  const pcts = [...html.matchAll(/<tr class="close"><td>[^<]*<\/td><td>(\d+)%/g)].map((m) => Number(m[1]))
+  expect(pcts).toEqual([13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2])
 })
 
 it('renders closes history and surplus', () => {

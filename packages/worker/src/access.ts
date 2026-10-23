@@ -19,6 +19,7 @@ export async function verifyAccess(req: Request, env: Env, deps: { jwks?: JWTVer
     await jwtVerify(token, deps.jwks ?? keysFor(env.ACCESS_TEAM_DOMAIN), {
       issuer: `https://${env.ACCESS_TEAM_DOMAIN}`,
       audience: env.ACCESS_AUD,
+      algorithms: ['RS256'],
     })
     return true
   } catch {
