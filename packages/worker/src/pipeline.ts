@@ -19,6 +19,7 @@ import { sendMessage } from './telegram.js'
 export interface PipelineDeps {
   fetch?: typeof fetch
   sleep?: (ms: number) => Promise<unknown>
+  clock?: () => Date
 }
 
 const LEASE = 'evaluate'
@@ -38,10 +39,11 @@ export async function processReadings(
 ): Promise<boolean> {
   const repo = new Repo(env.DB, env.CREDENTIALS_KEY)
   const sleep = deps.sleep ?? defaultSleep
-  let token = await repo.acquireLease(LEASE, LEASE_TTL_MS, now)
+  const clock = deps.clock ?? (() => new Date())
+  let token = await repo.acquireLease(LEASE, LEASE_TTL_MS, clock())
   for (let attempt = 1; token === null && attempt <= LEASE_RETRIES; attempt++) {
     await sleep(LEASE_RETRY_MS)
-    token = await repo.acquireLease(LEASE, LEASE_TTL_MS, new Date(now.getTime() + attempt * LEASE_RETRY_MS))
+    token = await repo.acquireLease(LEASE, LEASE_TTL_MS, clock())
   }
   if (token === null) return false
   try {

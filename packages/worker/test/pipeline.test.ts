@@ -306,6 +306,7 @@ describe('processReadings', () => {
     let sleeps = 0
     const applied = await processReadings(testEnv, [ok('codex', [quota()])], NOW, {
       fetch: tg.fetch,
+      clock: () => NOW,
       sleep: async () => {
         sleeps++
       },
@@ -315,6 +316,18 @@ describe('processReadings', () => {
     expect(tg.requests).toEqual([])
     const rows = await env.DB.prepare('SELECT * FROM snapshots').all()
     expect(rows.results).toEqual([])
+  })
+
+  it('times the evaluation lease from the real clock, not the business time', async () => {
+    const clockNow = new Date(NOW.getTime() + 7 * 24 * HOUR)
+    let concurrent: string | null | undefined
+    const probe: typeof fetch = async (input, init) => {
+      concurrent = await repo.acquireLease('evaluate', 60_000, new Date(clockNow.getTime() + 30_000))
+      return tg.fetch(input, init)
+    }
+    await processReadings(testEnv, [fail('codex', NOW.toISOString())], NOW, { fetch: probe, clock: () => clockNow })
+    expect(tg.texts).toHaveLength(1)
+    expect(concurrent).toBeNull()
   })
 
   it('sends a single message when two evaluations overlap', async () => {

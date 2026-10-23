@@ -48,7 +48,7 @@ beforeEach(async () => {
 
 const cred = (id: ProviderId) => repo.putCredential(id, JSON.stringify({ token: 't' }))
 const sched = (now: Date, providers: Provider<any>[] = []) =>
-  runScheduled(testEnv, now, { fetch: tg.fetch, providers, sleep: async () => {} })
+  runScheduled(testEnv, now, { fetch: tg.fetch, providers, sleep: async () => {}, clock: () => now })
 
 describe('runCloudProviders', () => {
   it('returns a reading per provider and isolates exceptions', async () => {
@@ -90,7 +90,7 @@ describe('runCloudProviders', () => {
     await cred('codex')
     await repo.acquireLease('provider:codex', 120_000, MONDAY_0910)
     const p = fake('codex')
-    expect(await runCloudProviders(testEnv, MONDAY_0910, { providers: [p] })).toEqual([])
+    expect(await runCloudProviders(testEnv, MONDAY_0910, { providers: [p], clock: () => MONDAY_0910 })).toEqual([])
     expect(p.reads).toBe(0)
   })
 
@@ -98,6 +98,20 @@ describe('runCloudProviders', () => {
     await cred('codex')
     await runCloudProviders(testEnv, MONDAY_0910, { providers: [fake('codex')] })
     expect(await repo.acquireLease('provider:codex', 120_000, MONDAY_0910)).not.toBeNull()
+  })
+
+  it('times provider leases from the real clock, not the business time', async () => {
+    await cred('codex')
+    const clockNow = new Date('2026-10-23T12:00:00.000Z')
+    let concurrent: string | null | undefined
+    const p = fake('codex')
+    p.read = async (ctx) => {
+      concurrent = await repo.acquireLease('provider:codex', 120_000, new Date(clockNow.getTime() + 60_000))
+      return { reading: okReading('codex', 'cloud', [], ctx.now()) }
+    }
+    const businessNow = new Date(clockNow.getTime() - 7 * DAY)
+    await runCloudProviders(testEnv, businessNow, { providers: [p], clock: () => clockNow })
+    expect(concurrent).toBeNull()
   })
 
   it('skips disabled providers and tolerates invalid config', async () => {

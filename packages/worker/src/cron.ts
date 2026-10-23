@@ -53,7 +53,7 @@ export async function runCloudProviders(env: Env, now: Date, deps: CronDeps = {}
     if (disabled.includes(provider.id)) continue
     if (deps.only && !deps.only.includes(provider.id)) continue
     const lease = `provider:${provider.id}`
-    const token = await repo.acquireLease(lease, PROVIDER_LEASE_TTL_MS, now)
+    const token = await repo.acquireLease(lease, PROVIDER_LEASE_TTL_MS, deps.clock?.() ?? new Date())
     if (token === null) continue
     try {
       readings.push(await readProvider(repo, provider, fetchFn, now))
