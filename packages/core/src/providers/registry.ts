@@ -6,8 +6,9 @@ import { codexProvider } from './codex.js'
 import { grokProvider } from './grok.js'
 import { cursorProvider } from './cursor.js'
 import { mimoProvider } from './mimo.js'
+import { opencodeProvider } from './opencode.js'
 import type { Provider } from './contract.js'
 
 export const CLOUD_PROVIDERS: Provider<any>[] = [copilotProvider, kiloProvider, qoderProvider, freebuffProvider, codexProvider, grokProvider, cursorProvider]
 
-export const LOCAL_HTTP_PROVIDERS: Provider<any>[] = [mimoProvider]
+export const LOCAL_HTTP_PROVIDERS: Provider<any>[] = [mimoProvider, opencodeProvider]
