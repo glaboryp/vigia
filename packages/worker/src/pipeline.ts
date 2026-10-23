@@ -9,11 +9,10 @@ import {
   renewedMessage,
   useOrLoseKey,
   useOrLoseMessage,
-  type ProviderHealth,
   type ProviderId,
   type ProviderReading,
 } from 'core'
-import { Repo, type StoredQuota } from './db.js'
+import { Repo, type StoredHealth, type StoredQuota } from './db.js'
 import type { Env } from './env.js'
 import { sendMessage } from './telegram.js'
 
@@ -36,7 +35,7 @@ export async function processReadings(
   readings: ProviderReading[],
   now: Date,
   deps: PipelineDeps = {},
-): Promise<void> {
+): Promise<boolean> {
   const repo = new Repo(env.DB, env.CREDENTIALS_KEY)
   const sleep = deps.sleep ?? defaultSleep
   let token = await repo.acquireLease(LEASE, LEASE_TTL_MS, now)
@@ -44,16 +43,17 @@ export async function processReadings(
     await sleep(LEASE_RETRY_MS)
     token = await repo.acquireLease(LEASE, LEASE_TTL_MS, new Date(now.getTime() + attempt * LEASE_RETRY_MS))
   }
-  if (token === null) return
+  if (token === null) return false
   try {
     await new Evaluation(repo, now, (text) => sendMessage(env, text, deps.fetch)).run(readings)
+    return true
   } finally {
     await repo.releaseLease(LEASE, token)
   }
 }
 
 class Evaluation {
-  private health = new Map<ProviderId, ProviderHealth>()
+  private health = new Map<ProviderId, StoredHealth>()
   private current = new Map<string, StoredQuota>()
 
   constructor(
@@ -90,8 +90,12 @@ class Evaluation {
   }
 
   private async updateHealth(reading: ProviderReading): Promise<void> {
+    const prev = this.health.get(reading.provider)
+    const latest = prev?.lastReadAt ?? prev?.lastOkAt
+    if (latest !== undefined && Date.parse(reading.readAt) < Date.parse(latest)) return
     const muted = this.isMuted(reading.provider)
-    const { health, event } = nextHealth(this.health.get(reading.provider), reading)
+    const { health: computed, event } = nextHealth(prev, reading)
+    const health: StoredHealth = { ...computed, lastReadAt: reading.readAt }
     let stored = health
     if (event === 'broken') {
       const sent =

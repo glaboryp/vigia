@@ -54,6 +54,7 @@ CREATE TABLE provider_health (
   last_error_message TEXT,
   broken_notified INTEGER NOT NULL,
   last_ok_at TEXT,
+  last_read_at TEXT,
   muted_until TEXT
 );
 

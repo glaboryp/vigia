@@ -63,6 +63,22 @@ describe('sendMessage', () => {
     expect(await sendMessage(testEnv, 'hola', tg.fetch)).toBe(false)
   })
 
+  it('returns false when Telegram does not answer in time', async () => {
+    const hanging: typeof fetch = (_input, init) =>
+      new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)))
+    expect(await sendMessage(testEnv, 'hola', hanging, 20)).toBe(false)
+  })
+
+  it('aborts the request after ten seconds by default', async () => {
+    let signal: AbortSignal | null | undefined
+    const capture: typeof fetch = async (_input, init) => {
+      signal = init?.signal
+      return new Response('{}')
+    }
+    await sendMessage(testEnv, 'hola', capture)
+    expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('returns false on network error', async () => {
     tg.fail = true
     expect(await sendMessage(testEnv, 'hola', tg.fetch)).toBe(false)
@@ -71,6 +87,7 @@ describe('sendMessage', () => {
 
 describe('processReadings', () => {
   it('stores a snapshot and the current quota', async () => {
+    expect(await run([])).toBe(true)
     await run([ok('codex', [quota({ resetsAt: at(5 * 24 * HOUR) })])])
     const rows = await env.DB.prepare('SELECT provider FROM snapshots').all()
     expect(rows.results).toHaveLength(1)
@@ -201,6 +218,35 @@ describe('processReadings', () => {
     })
   })
 
+  it('suppresses renewal and recovered messages for muted providers', async () => {
+    const first = quota({ remainingFraction: 0, resetsAt: at(2 * HOUR) })
+    await run([ok('codex', [first]), fail('cursor', at(0))])
+    expect(tg.texts).toHaveLength(1)
+    const later = new Date(NOW.getTime() + 3 * HOUR)
+    for (const provider of ['codex', 'cursor'] as const) {
+      const h = (await repo.getHealth()).find((x) => x.provider === provider)
+      await repo.putHealth({ ...(h ?? { provider, consecutiveFailures: 0, brokenNotified: false }), mutedUntil: at(24 * HOUR) })
+    }
+    const renewed = { ...first, remainingFraction: 1, resetsAt: at(2 * HOUR + 7 * 24 * HOUR) }
+    await run([ok('codex', [renewed], later.toISOString()), ok('cursor', [], later.toISOString())], later)
+    expect(tg.texts).toHaveLength(1)
+    expect(await repo.getSentKeys('renewed:')).toEqual(new Set())
+    expect((await repo.getCurrentQuotas())[0]).toMatchObject({ remainingFraction: 1, periodResetAt: renewed.resetsAt })
+    expect((await repo.getHealth()).find((h) => h.provider === 'cursor')).toMatchObject({
+      consecutiveFailures: 0,
+      brokenNotified: false,
+    })
+  })
+
+  it('ignores a health reading older than the latest one seen', async () => {
+    await run([ok('cursor', [], at(HOUR))], new Date(at(HOUR)))
+    await run([fail('cursor', at(0), 'network')], new Date(at(HOUR)))
+    expect((await repo.getHealth())[0]).toMatchObject({ consecutiveFailures: 0, lastOkAt: at(HOUR) })
+    await run([fail('cursor', at(2 * HOUR), 'network')], new Date(at(2 * HOUR)))
+    await run([fail('cursor', at(90 * 60_000), 'network')], new Date(at(2 * HOUR)))
+    expect((await repo.getHealth())[0]).toMatchObject({ consecutiveFailures: 1 })
+  })
+
   it('stops muting once mutedUntil has passed', async () => {
     await repo.putHealth({ provider: 'codex', consecutiveFailures: 0, brokenNotified: false, mutedUntil: at(-HOUR) })
     await run([ok('codex', [quota()])])
@@ -258,12 +304,13 @@ describe('processReadings', () => {
     const holder = await repo.acquireLease('evaluate', 60_000, NOW)
     expect(holder).not.toBeNull()
     let sleeps = 0
-    await processReadings(testEnv, [ok('codex', [quota()])], NOW, {
+    const applied = await processReadings(testEnv, [ok('codex', [quota()])], NOW, {
       fetch: tg.fetch,
       sleep: async () => {
         sleeps++
       },
     })
+    expect(applied).toBe(false)
     expect(sleeps).toBe(3)
     expect(tg.requests).toEqual([])
     const rows = await env.DB.prepare('SELECT * FROM snapshots').all()

@@ -10,6 +10,7 @@ class Invalid extends Error {}
 const WINDOWS: readonly Window[] = ['5h', 'daily', 'weekly', 'monthly']
 const SOURCES: readonly Source[] = ['cloud', 'local']
 const ERROR_KINDS: readonly ErrorKind[] = ['auth', 'network', 'parse', 'unavailable']
+const MAX_CLOCK_SKEW_MS = 5 * 60_000
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/
 
 type Obj = Record<string, unknown>
@@ -51,11 +52,11 @@ function quota(v: unknown, provider: ProviderId): Quota {
   }
 }
 
-function reading(v: unknown): ProviderReading {
+function reading(v: unknown, now: Date): ProviderReading {
   check(isObj(v), 'reading')
   check(isProvider(v.provider), 'reading.provider')
   check(oneOf(v.source, SOURCES), 'reading.source')
-  check(isIso(v.readAt), 'reading.readAt')
+  check(isIso(v.readAt) && Date.parse(v.readAt) <= now.getTime() + MAX_CLOCK_SKEW_MS, 'reading.readAt')
   const base = { provider: v.provider, readAt: v.readAt, source: v.source }
   if (v.ok === true) {
     check(Array.isArray(v.quotas), 'reading.quotas')
@@ -72,12 +73,12 @@ function credential(v: unknown): { provider: ProviderId; value: string } {
   return { provider: v.provider, value: v.value }
 }
 
-export function parseIngestBody(v: unknown): IngestBody | null {
+export function parseIngestBody(v: unknown, now: Date): IngestBody | null {
   try {
     check(isObj(v) && Array.isArray(v.readings), 'readings')
     const credentials = v.credentials === undefined ? [] : v.credentials
     check(Array.isArray(credentials), 'credentials')
-    return { readings: v.readings.map(reading), credentials: credentials.map(credential) }
+    return { readings: v.readings.map((r) => reading(r, now)), credentials: credentials.map(credential) }
   } catch (e) {
     if (e instanceof Invalid) return null
     throw e

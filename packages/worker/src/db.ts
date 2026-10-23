@@ -11,6 +11,7 @@ import type {
 import { decrypt, encrypt } from './crypto.js'
 
 export type StoredQuota = TrackedQuota & { source: Source }
+export type StoredHealth = ProviderHealth & { lastReadAt?: string }
 
 interface QuotaRow {
   provider: ProviderId
@@ -42,6 +43,7 @@ interface HealthRow {
   last_error_message: string | null
   broken_notified: number
   last_ok_at: string | null
+  last_read_at: string | null
   muted_until: string | null
 }
 
@@ -68,12 +70,13 @@ const toClose = (r: CloseRow): PeriodClose => ({
   usedFraction: r.used_fraction,
 })
 
-const toHealth = (r: HealthRow): ProviderHealth => ({
+const toHealth = (r: HealthRow): StoredHealth => ({
   provider: r.provider,
   consecutiveFailures: r.consecutive_failures,
   ...(r.last_error_kind !== null && { lastError: { kind: r.last_error_kind, message: r.last_error_message ?? '' } }),
   brokenNotified: r.broken_notified === 1,
   ...(r.last_ok_at !== null && { lastOkAt: r.last_ok_at }),
+  ...(r.last_read_at !== null && { lastReadAt: r.last_read_at }),
   ...(r.muted_until !== null && { mutedUntil: r.muted_until }),
 })
 
@@ -176,23 +179,24 @@ export class Repo {
     return results.map(toClose)
   }
 
-  async getHealth(): Promise<ProviderHealth[]> {
+  async getHealth(): Promise<StoredHealth[]> {
     const { results } = await this.db.prepare('SELECT * FROM provider_health ORDER BY provider').all<HealthRow>()
     return results.map(toHealth)
   }
 
-  async putHealth(h: ProviderHealth): Promise<void> {
+  async putHealth(h: StoredHealth): Promise<void> {
     await this.db
       .prepare(
         `INSERT INTO provider_health
-           (provider, consecutive_failures, last_error_kind, last_error_message, broken_notified, last_ok_at, muted_until)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+           (provider, consecutive_failures, last_error_kind, last_error_message, broken_notified, last_ok_at, last_read_at, muted_until)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (provider) DO UPDATE SET
            consecutive_failures = excluded.consecutive_failures,
            last_error_kind = excluded.last_error_kind,
            last_error_message = excluded.last_error_message,
            broken_notified = excluded.broken_notified,
            last_ok_at = excluded.last_ok_at,
+           last_read_at = excluded.last_read_at,
            muted_until = excluded.muted_until`,
       )
       .bind(
@@ -202,6 +206,7 @@ export class Repo {
         h.lastError?.message ?? null,
         h.brokenNotified ? 1 : 0,
         h.lastOkAt === undefined ? null : iso(h.lastOkAt),
+        h.lastReadAt === undefined ? null : iso(h.lastReadAt),
         h.mutedUntil === undefined ? null : iso(h.mutedUntil),
       )
       .run()

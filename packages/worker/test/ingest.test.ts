@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Repo } from '../src/db.js'
-import worker from '../src/index.js'
+import { createWorker } from '../src/index.js'
 import { resetDb, telegramMock, testEnv, type TelegramMock } from './helpers.js'
 
 const HOUR = 3_600_000
@@ -23,6 +23,8 @@ const reading = () => ({
     },
   ],
 })
+
+const worker = createWorker({ sleep: async () => {} })
 
 const post = (body: unknown, token: string | null = testEnv.INGEST_TOKEN) =>
   worker.fetch(
@@ -77,6 +79,7 @@ describe('POST /ingest', () => {
     ['missing readings', {}],
     ['unknown provider', { readings: [{ ...reading(), provider: 'chatgpt' }] }],
     ['bad window', { readings: [{ ...reading(), quotas: [{ ...reading().quotas[0], window: 'yearly' }] }] }],
+    ['readAt in the future', { readings: [{ ...reading(), readAt: iso(6 * 60_000) }] }],
     ['non-ISO readAt', { readings: [{ ...reading(), readAt: 'yesterday' }] }],
     ['non-ISO resetsAt', { readings: [{ ...reading(), quotas: [{ ...reading().quotas[0], resetsAt: '23/10/2026' }] }] }],
     ['fraction above 1', { readings: [{ ...reading(), quotas: [{ ...reading().quotas[0], remainingFraction: 1.2 }] }] }],
@@ -107,5 +110,25 @@ describe('POST /ingest', () => {
     expect((await post(body)).status).toBe(204)
     expect(tg.texts).toHaveLength(1)
     expect(tg.texts[0]).toContain('Úsalo o piérdelo')
+  })
+
+  it('accepts a readAt slightly ahead of the server clock', async () => {
+    expect((await post({ readings: [{ ...reading(), readAt: iso(60_000) }] })).status).toBe(204)
+  })
+
+  it('answers 503 while another evaluation holds the lease', async () => {
+    const repo = new Repo(env.DB)
+    const token = (await repo.acquireLease('evaluate', 60_000, new Date()))!
+    const body = { readings: [reading()], credentials: [{ provider: 'cursor', value: 'tok' }] }
+    const busy = await post(body)
+    expect(busy.status).toBe(503)
+    expect(busy.headers.get('retry-after')).toBe('30')
+    expect((await env.DB.prepare('SELECT * FROM snapshots').all()).results).toEqual([])
+    expect(tg.requests).toEqual([])
+    expect((await env.DB.prepare('SELECT * FROM credentials').all()).results).toEqual([])
+    await repo.releaseLease('evaluate', token)
+    expect((await post(body)).status).toBe(204)
+    expect((await env.DB.prepare('SELECT * FROM snapshots').all()).results).toHaveLength(1)
+    expect(tg.texts).toHaveLength(1)
   })
 })
