@@ -7,7 +7,9 @@
   "scripts": {
     "test": "vitest run",
     "capture": "tsx src/capture.ts",
-    "start": "tsx src/main.ts"
+    "start": "tsx src/main.ts",
+    "push-credential": "tsx src/push-credential.ts",
+    "install-service": "tsx src/install.ts"
   },
   "dependencies": {
     "core": "workspace:*"
