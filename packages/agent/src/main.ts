@@ -1,7 +1,17 @@
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { cursorProvider, errorReading, type ProviderId, type ProviderReading } from 'core'
+import {
+  LOCAL_HTTP_PROVIDERS,
+  ProviderError,
+  cursorProvider,
+  errorFromUnknown,
+  errorReading,
+  type Provider,
+  type ProviderId,
+  type ProviderReading,
+} from 'core'
 import { readAntigravity } from './antigravity.js'
+import { BRAVE_COOKIE_HOSTS, getBraveCookieHeader, keyringPassword } from './brave-cookies.js'
 import { loadConfig, type AgentConfig } from './config.js'
 import { IngestError, postIngest } from './ingest-client.js'
 import { readCursorToken } from './cursor-token.js'
@@ -18,6 +28,8 @@ export interface RunDeps {
   statePath?: string
   readCursorToken?: () => Promise<string | null>
   localReaders?: LocalReader[]
+  localHttpProviders?: Provider<any>[]
+  braveCookieHeader?: (host: string) => Promise<string | null>
   log?: (message: string) => void
   logError?: (message: string) => void
 }
@@ -39,6 +51,22 @@ export async function runOnce(cfg: AgentConfig, deps: RunDeps = {}): Promise<num
       readings.push(
         errorReading(reader.provider, 'local', 'unavailable', err instanceof Error ? err.message : String(err), new Date()),
       )
+    }
+  }
+
+  const cookieFor = deps.braveCookieHeader ?? ((host: string) => getBraveCookieHeader(host, { password: keyringPassword() }))
+  for (const provider of deps.localHttpProviders ?? LOCAL_HTTP_PROVIDERS) {
+    if (cfg.disabled.includes(provider.id)) continue
+    const host = BRAVE_COOKIE_HOSTS[provider.id]
+    if (!host) continue
+    const now = new Date()
+    try {
+      const cookie = await cookieFor(host)
+      if (cookie === null) throw new ProviderError('auth', `Inicia sesión en ${host} con Brave`)
+      const result = await provider.read({ fetch: deps.fetch ?? fetch, now: () => new Date(), credential: { cookie } })
+      readings.push(result.reading)
+    } catch (err) {
+      readings.push(errorFromUnknown(provider.id, 'local', err, now))
     }
   }
 

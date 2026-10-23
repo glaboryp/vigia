@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ProviderReading } from 'core'
+import { LOCAL_HTTP_PROVIDERS, type ProviderReading } from 'core'
 import { runOnce } from '../src/main.ts'
 
 const cfg = { workerUrl: 'https://w.example', ingestToken: 'tok', disabled: [] as never[] }
@@ -32,6 +32,7 @@ function deps(over: Record<string, unknown> = {}) {
     d: {
       statePath,
       readCursorToken: async () => null,
+      localHttpProviders: [],
       localReaders: [{ provider: 'antigravity' as const, read: async () => reading('antigravity') }],
       log: (m: string) => logs.push(m),
       logError: (m: string) => errors.push(m),
@@ -97,5 +98,47 @@ describe('runOnce', () => {
       ['antigravity', false],
       ['mimo', true],
     ])
+  })
+})
+
+describe('runOnce with local HTTP providers', () => {
+  const COOKIE = 'session=SUPERSECRETCOOKIE'
+  const hosts = { mimo: 'platform.xiaomimimo.com', opencode: 'opencode.ai' }
+
+  it('reads mimo and opencode with their cookie, never sending the cookie', async () => {
+    const seen: string[] = []
+    const fetchFn = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('w.example')) return new Response(null, { status: 204 })
+      seen.push(new Headers(init?.headers).get('cookie') ?? '')
+      return new Response('{}', { status: 200 })
+    })
+    const cookieFor = vi.fn(async (host: string) => (host === hosts.mimo ? COOKIE : null))
+    const { d } = deps({ fetch: fetchFn, localReaders: [], localHttpProviders: LOCAL_HTTP_PROVIDERS, braveCookieHeader: cookieFor })
+    expect(await runOnce(cfg, d)).toBe(0)
+    expect(cookieFor).toHaveBeenCalledWith('platform.xiaomimimo.com')
+    expect(cookieFor).toHaveBeenCalledWith('opencode.ai')
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.every((c) => c === COOKIE)).toBe(true)
+    const ingest = fetchFn.mock.calls.find((c) => String(c[0]).includes('w.example'))!
+    const raw = (ingest[1] as RequestInit).body as string
+    expect(raw).not.toContain('SUPERSECRETCOOKIE')
+    const body = JSON.parse(raw)
+    const opencode = body.readings.find((r: ProviderReading) => r.provider === 'opencode')
+    expect(opencode).toMatchObject({ ok: false, error: { kind: 'auth', message: 'Inicia sesión en opencode.ai con Brave' } })
+    expect(body.readings.map((r: ProviderReading) => r.provider).sort()).toEqual(['mimo', 'opencode'])
+  })
+
+  it('turns cookie errors into error readings and skips disabled providers', async () => {
+    const fetchFn = vi.fn(async () => new Response(null, { status: 204 }))
+    const { ProviderError } = await import('core')
+    const cookieFor = vi.fn(async () => {
+      throw new ProviderError('auth', 'No puedo acceder al llavero de GNOME')
+    })
+    const { d } = deps({ fetch: fetchFn, localReaders: [], localHttpProviders: LOCAL_HTTP_PROVIDERS, braveCookieHeader: cookieFor })
+    await runOnce({ ...cfg, disabled: ['opencode'] as never[] }, d)
+    const body = JSON.parse((fetchFn.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(body.readings).toHaveLength(1)
+    expect(body.readings[0]).toMatchObject({ provider: 'mimo', ok: false, error: { kind: 'auth', message: 'No puedo acceder al llavero de GNOME' } })
   })
 })
