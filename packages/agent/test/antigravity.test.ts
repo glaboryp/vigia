@@ -44,7 +44,7 @@ describe('readAntigravity', () => {
           name: 'Gemini Models',
           window: 'weekly',
           remainingFraction: 0,
-          resetsAt: '2026-10-26T09:54:21Z',
+          resetsAt: '2026-10-26T09:54:21.000Z',
         },
         {
           provider: 'antigravity',
@@ -52,7 +52,7 @@ describe('readAntigravity', () => {
           name: 'Claude and GPT models',
           window: 'weekly',
           remainingFraction: 0.058038000017404556,
-          resetsAt: '2026-10-26T14:13:14Z',
+          resetsAt: '2026-10-26T14:13:14.000Z',
         },
       ],
     })
@@ -60,6 +60,15 @@ describe('readAntigravity', () => {
     expect(usage.args).toEqual(['-p', '/usage', '--output-format', 'json', '--print-timeout', '20s'])
     expect(usage.env.AGY_CLI_DISABLE_AUTO_UPDATE).toBe('true')
     expect(usage.env.PATH).toContain('.local/bin')
+  })
+
+  it('normalizes reset times that are not canonical ISO strings', async () => {
+    const data = JSON.parse(fixture)
+    data.command.data.groups[0].buckets[0].reset_time = 'Mon, 26 Oct 2026 09:54:21 GMT'
+    data.command.data.groups[1].buckets[0].reset_time = '2026-10-26T15:13:14+01:00'
+    const { run } = fakeRun({ stdout: JSON.stringify(data) })
+    const reading = await readAntigravity(run, () => NOW, { statePath })
+    expect(reading.ok && reading.quotas.map((q) => q.resetsAt)).toEqual(['2026-10-26T09:54:21.000Z', '2026-10-26T14:13:14.000Z'])
   })
 
   it('skips buckets whose window is not weekly or that are disabled', async () => {

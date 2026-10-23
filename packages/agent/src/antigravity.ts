@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { errorReading, okReading, type ErrorKind, type ProviderReading, type Quota } from 'core'
+import { errorReading, okReading, toIso, type ErrorKind, type ProviderReading, type Quota } from 'core'
 import { defaultStatePath, readState, writeState } from './state.js'
 
 export type RunResult = { code: number | null; stdout: string; stderr: string }
@@ -143,10 +143,11 @@ function parseQuotas(envelope: unknown): Quota[] | null {
     if (!isRecord(group) || typeof group.name !== 'string' || !Array.isArray(group.buckets)) continue
     for (const bucket of group.buckets) {
       if (!isRecord(bucket) || bucket.disabled === true || bucket.window !== 'weekly') continue
-      const { id, remaining_fraction: fraction, reset_time: reset } = bucket
+      const { id, remaining_fraction: fraction } = bucket
+      const reset = toIso(bucket.reset_time)
       if (typeof id !== 'string' || id === '') continue
       if (typeof fraction !== 'number' || !Number.isFinite(fraction)) continue
-      if (typeof reset !== 'string' || Number.isNaN(Date.parse(reset))) continue
+      if (reset === undefined) continue
       quotas.push({
         provider: 'antigravity',
         quotaId: id,
