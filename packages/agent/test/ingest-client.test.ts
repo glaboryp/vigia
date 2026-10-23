@@ -50,4 +50,14 @@ describe('postIngest', () => {
     expect(err).toBeInstanceOf(IngestError)
     expect(err.network).toBe(true)
   })
+
+  it('preserves a path prefix in workerUrl', async () => {
+    const fetchFn = vi.fn(async () => new Response(null, { status: 204 }))
+    await postIngest({ ...cfg, workerUrl: 'https://h.example/vigia' }, payload, fetchFn)
+    await postIngest({ ...cfg, workerUrl: 'https://h.example/vigia/' }, payload, fetchFn)
+    expect(fetchFn.mock.calls.map((c) => (c as unknown as [string])[0])).toEqual([
+      'https://h.example/vigia/ingest',
+      'https://h.example/vigia/ingest',
+    ])
+  })
 })

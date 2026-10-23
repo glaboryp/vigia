@@ -32,4 +32,22 @@ describe('loadConfig', () => {
     await writeFile(path, JSON.stringify({ workerUrl: 'https://w.example' }), { mode: 0o600 })
     await expect(loadConfig(path)).rejects.toThrow(/ingestToken/)
   })
+
+  const write = (obj: unknown) => writeFile(path, JSON.stringify(obj), { mode: 0o600 })
+
+  it('requires https except for localhost', async () => {
+    await write({ workerUrl: 'http://w.example', ingestToken: 't' })
+    await expect(loadConfig(path)).rejects.toThrow(/https/)
+    await write({ workerUrl: 'http://localhost:8787', ingestToken: 't' })
+    expect((await loadConfig(path)).workerUrl).toBe('http://localhost:8787')
+    await write({ workerUrl: 'http://127.0.0.1:8787', ingestToken: 't' })
+    expect((await loadConfig(path)).workerUrl).toBe('http://127.0.0.1:8787')
+  })
+
+  it('rejects unknown providers in disabled', async () => {
+    await write({ workerUrl: 'https://w.example', ingestToken: 't', disabled: ['nope'] })
+    await expect(loadConfig(path)).rejects.toThrow(/nope/)
+    await write({ workerUrl: 'https://w.example', ingestToken: 't', disabled: ['cursor'] })
+    expect((await loadConfig(path)).disabled).toEqual(['cursor'])
+  })
 })

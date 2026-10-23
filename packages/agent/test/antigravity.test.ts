@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { stat } from 'node:fs/promises'
 import { readAntigravity } from '../src/antigravity.ts'
 
 const fixture = await readFile(new URL('./fixtures/antigravity-usage.json', import.meta.url), 'utf8')
@@ -128,5 +129,49 @@ describe('readAntigravity', () => {
       cursorTokenHash: 'abc',
       antigravityModelTurn: { version: '1.2.11' },
     })
+  })
+
+  it('is unavailable when the version output cannot be parsed', async () => {
+    const { run, calls } = fakeRun({ stdout: fixture }, 'garbage\n')
+    const reading = await readAntigravity(run, () => NOW, { statePath })
+    expect(reading).toMatchObject({ ok: false, error: { kind: 'unavailable' } })
+    expect(calls.some((c) => c.args[0] === '-p')).toBe(false)
+  })
+
+  it('parses pretty-printed JSON stdout', async () => {
+    const { run } = fakeRun({ stdout: JSON.stringify(JSON.parse(fixture), null, 2) })
+    expect((await readAntigravity(run, () => NOW, { statePath })).ok).toBe(true)
+  })
+
+  it('does not treat a bare "sign in" as signed out', async () => {
+    const { run } = fakeRun({ code: 1, stderr: 'failed to sign in the websocket handshake' })
+    const reading = await readAntigravity(run, () => NOW, { statePath })
+    expect(reading).toMatchObject({ ok: false, error: { kind: 'parse' } })
+  })
+
+  it('stores state with mode 0600 in a 0700 directory', async () => {
+    const nested = join(dir, 'sub', 'state.json')
+    const turn = JSON.stringify({ status: 'SUCCESS', conversation_id: 'abc', num_turns: 1 })
+    await readAntigravity(fakeRun({ stdout: turn }).run, () => NOW, { statePath: nested })
+    expect((await stat(nested)).mode & 0o777).toBe(0o600)
+    expect((await stat(join(dir, 'sub'))).mode & 0o777).toBe(0o700)
+  })
+
+  it('latches after 2 consecutive timeouts, resets on success or version change', async () => {
+    const timeout = () => fakeRun({ code: null as unknown as number })
+    await readAntigravity(timeout().run, () => NOW, { statePath })
+    expect(JSON.parse(await readFile(statePath, 'utf8')).antigravityTimeouts).toEqual({ version: '1.2.11', count: 1 })
+    const ok = await readAntigravity(fakeRun({ stdout: fixture }).run, () => NOW, { statePath })
+    expect(ok.ok).toBe(true)
+    expect(JSON.parse(await readFile(statePath, 'utf8')).antigravityTimeouts).toBeUndefined()
+
+    await readAntigravity(timeout().run, () => NOW, { statePath })
+    await readAntigravity(timeout().run, () => NOW, { statePath })
+    const blocked = fakeRun({ stdout: fixture })
+    expect((await readAntigravity(blocked.run, () => NOW, { statePath })).ok).toBe(false)
+    expect(blocked.calls.some((c) => c.args[0] === '-p')).toBe(false)
+
+    const newer = fakeRun({ stdout: fixture }, 'agy 1.3.0\n')
+    expect((await readAntigravity(newer.run, () => NOW, { statePath })).ok).toBe(true)
   })
 })

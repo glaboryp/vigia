@@ -76,8 +76,12 @@ export async function runOnce(cfg: AgentConfig, deps: RunDeps = {}): Promise<num
   }
   if (cursorHash !== undefined) {
     const hash = cursorHash
-    await writeState(statePath, (s) => ({ ...s, cursorTokenHash: hash }))
-    log('Token de Cursor sincronizado')
+    try {
+      await writeState(statePath, (s) => ({ ...s, cursorTokenHash: hash }))
+      log('Token de Cursor sincronizado')
+    } catch (err) {
+      logError(`No he podido guardar el estado del token de Cursor: ${err instanceof Error ? err.message : String(err)}`)
+    }
   }
   log(`Enviadas ${readings.length} lecturas`)
   return 0

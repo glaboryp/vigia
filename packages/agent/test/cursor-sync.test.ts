@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, mkdir, chmod } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -105,5 +105,19 @@ describe('runOnce Cursor token sync', () => {
     })
     expect(await runOnce(cfg, d2)).toBe(0)
     expect(errors.join('\n')).toMatch(/Cursor/)
+  })
+
+  it('does not fail the run when the hash cannot be saved', async () => {
+    const ro = join(dir, 'ro')
+    await mkdir(ro)
+    await chmod(ro, 0o500)
+    const { d, errors } = deps({
+      fetch: async () => ok(),
+      readCursorToken: async () => 'tok-abc',
+      statePath: join(ro, 'state.json'),
+    })
+    expect(await runOnce(cfg, d)).toBe(0)
+    expect(errors.join('\n')).toMatch(/estado/)
+    await chmod(ro, 0o700)
   })
 })

@@ -11,6 +11,7 @@ export interface AntigravityOptions {
   statePath?: string
 }
 
+const MAX_TIMEOUTS = 2
 const MIN_VERSION = [1, 1, 11] as const
 const USAGE_ARGS = ['-p', '/usage', '--output-format', 'json', '--print-timeout', '20s']
 const VERSION_TIMEOUT_MS = 5_000
@@ -26,7 +27,7 @@ const SIGNED_OUT_PHRASES = [
   'run agy login',
   'please sign in',
   'please log in',
-  'sign in',
+  'sign in to antigravity',
   'no credentials',
   'authentication required',
 ]
@@ -35,28 +36,60 @@ function timeoutFor(args: string[]): number {
   return args[0] === '--version' ? VERSION_TIMEOUT_MS : USAGE_TIMEOUT_MS
 }
 
-export const defaultRun: Runner = (cmd, args, env) =>
-  new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
+export interface RunLimits {
+  timeoutMs?: number
+  graceMs?: number
+}
+
+const KILL_GRACE_MS = 2_000
+
+export const defaultRun: Runner = (cmd, args, env) => runProcess(cmd, args, env)
+
+export function runProcess(cmd: string, args: string[], env: NodeJS.ProcessEnv, limits: RunLimits = {}): Promise<RunResult> {
+  const timeoutMs = limits.timeoutMs ?? timeoutFor(args)
+  const graceMs = limits.graceMs ?? KILL_GRACE_MS
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { env, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
     let stdout = ''
     let stderr = ''
     let timedOut = false
+    let settled = false
+    let exitCode: number | null = null
+    let graceTimer: NodeJS.Timeout | undefined
     const cap = (s: string, chunk: Buffer) => (s.length < MAX_OUTPUT_BYTES ? s + chunk.toString('utf8') : s)
     child.stdout.on('data', (c: Buffer) => (stdout = cap(stdout, c)))
     child.stderr.on('data', (c: Buffer) => (stderr = cap(stderr, c)))
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      clearTimeout(graceTimer)
+      child.stdout.destroy()
+      child.stderr.destroy()
+      resolve({ code: timedOut ? null : exitCode, stdout, stderr })
+    }
     const timer = setTimeout(() => {
       timedOut = true
-      child.kill('SIGKILL')
-    }, timeoutFor(args))
+      try {
+        process.kill(-child.pid!, 'SIGKILL')
+      } catch {
+        child.kill('SIGKILL')
+      }
+    }, timeoutMs)
     child.on('error', (err) => {
+      if (settled) return
+      settled = true
       clearTimeout(timer)
+      clearTimeout(graceTimer)
       reject(err)
     })
-    child.on('close', (code) => {
-      clearTimeout(timer)
-      resolve({ code: timedOut ? null : code, stdout, stderr })
+    child.on('exit', (code) => {
+      exitCode = code
+      graceTimer = setTimeout(finish, graceMs)
     })
+    child.on('close', finish)
   })
+}
 
 function probeEnv(): NodeJS.ProcessEnv {
   const localBin = join(homedir(), '.local', 'bin')
@@ -80,6 +113,9 @@ function versionAtLeast(version: string, min: readonly number[]): boolean {
 
 function jsonLines(stdout: string): unknown[] {
   const out: unknown[] = []
+  try {
+    out.push(JSON.parse(stdout.trim()))
+  } catch {}
   for (const line of stdout.split('\n')) {
     const trimmed = line.trim()
     if (!trimmed.startsWith('{')) continue
@@ -183,12 +219,17 @@ export async function readAntigravity(
 
   const state = await readState(statePath)
   const latched = state.antigravityModelTurn?.version
+  const hung = state.antigravityTimeouts
   if (latched === version) {
     return fail('unavailable', 'Esta versión de agy responde a /usage como un prompt; no la ejecuto para no gastar cuota')
   }
-  if (latched !== undefined) {
-    await writeState(statePath, ({ antigravityModelTurn: _drop, ...rest }) => rest)
+  if (hung?.version === version && hung.count >= MAX_TIMEOUTS) {
+    return fail('unavailable', 'agy no responde a /usage (varios tiempos de espera seguidos); no vuelvo a ejecutarlo con esta versión')
   }
+  if ((latched !== undefined && latched !== version) || (hung !== undefined && hung.version !== version)) {
+    await writeState(statePath, ({ antigravityModelTurn: _a, antigravityTimeouts: _b, ...rest }) => rest)
+  }
+  const currentHung = hung?.version === version ? hung.count : 0
 
   let result: RunResult
   try {
@@ -196,20 +237,26 @@ export async function readAntigravity(
   } catch (err) {
     return fail('unavailable', `No puedo ejecutar agy: ${err instanceof Error ? err.message : String(err)}`)
   }
-  if (result.code === null) return fail('unavailable', 'agy no respondió a tiempo')
+  if (result.code === null) {
+    await writeState(statePath, (s) => ({ ...s, antigravityTimeouts: { version, count: currentHung + 1 } }))
+    return fail('unavailable', 'agy no respondió a tiempo')
+  }
 
   let quotas: Quota[] | null = null
   for (const value of jsonLines(result.stdout)) {
     quotas = parseQuotas(value)
     if (quotas) break
   }
-  if (quotas && quotas.length > 0) return okReading('antigravity', 'local', quotas, now())
+  if (quotas && quotas.length > 0) {
+    if (currentHung > 0) await writeState(statePath, ({ antigravityTimeouts: _b, ...rest }) => rest)
+    return okReading('antigravity', 'local', quotas, now())
+  }
 
   if (!quotas && showsModelTurn(result.stdout)) {
     await writeState(statePath, (s) => ({ ...s, antigravityModelTurn: { version } }))
     return fail('unavailable', 'Esta versión de agy responde a /usage como un prompt; no la ejecuto para no gastar cuota')
   }
-  const kind = classifyFailure(`${result.stdout}\n${result.stderr}`)
+  const kind = result.code !== 0 || !quotas ? classifyFailure(`${result.stdout}\n${result.stderr}`) : null
   if (kind === 'auth') return fail('auth', 'Antigravity no tiene la sesión iniciada; ejecuta agy e inicia sesión')
   if (kind === 'network') return fail('network', 'Antigravity no está disponible ahora mismo (límite o error del servidor)')
   if (kind === 'unavailable') return fail('unavailable', 'La cuenta no tiene acceso a la cuota de Antigravity')

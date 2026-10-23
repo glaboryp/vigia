@@ -34,7 +34,8 @@ export async function postIngest(
   fetchFn: typeof fetch = fetch,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 ): Promise<void> {
-  const url = new URL('/ingest', cfg.workerUrl).href
+  const base = cfg.workerUrl
+  const url = new URL('ingest', base.endsWith('/') ? base : base + '/').href
   const body = JSON.stringify(payload)
   for (let attempt = 0; ; attempt++) {
     let response: Response

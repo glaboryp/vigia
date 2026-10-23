@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 export interface AgentState {
   cursorTokenHash?: string
   antigravityModelTurn?: { version: string }
+  antigravityTimeouts?: { version: string; count: number }
 }
 
 export function defaultConfigPath(): string {
@@ -33,7 +34,7 @@ export async function readState(path: string = defaultStatePath()): Promise<Agen
 
 export async function writeState(path: string, update: (state: AgentState) => AgentState): Promise<void> {
   const next = update(await readState(path))
-  await mkdir(dirname(path), { recursive: true })
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 })
   const tmp = `${path}.${process.pid}.tmp`
   await writeFile(tmp, JSON.stringify(next, null, 2) + '\n', { mode: 0o600 })
   await chmod(tmp, 0o600)

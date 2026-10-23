@@ -1,5 +1,5 @@
 import { readFile, stat } from 'node:fs/promises'
-import type { ProviderId } from 'core'
+import { PROVIDER_LABELS, type ProviderId } from 'core'
 import { defaultConfigPath } from './state.js'
 
 export interface AgentConfig {
@@ -33,8 +33,20 @@ export async function loadConfig(path: string = defaultConfigPath()): Promise<Ag
   const { workerUrl, ingestToken, disabled } = raw as Record<string, unknown>
   if (typeof workerUrl !== 'string' || workerUrl === '') throw new Error(`Falta "workerUrl" en ${path}`)
   if (typeof ingestToken !== 'string' || ingestToken === '') throw new Error(`Falta "ingestToken" en ${path}`)
-  if (disabled !== undefined && (!Array.isArray(disabled) || disabled.some((d) => typeof d !== 'string'))) {
-    throw new Error(`"disabled" debe ser una lista de proveedores en ${path}`)
+  let url: URL
+  try {
+    url = new URL(workerUrl)
+  } catch {
+    throw new Error(`"workerUrl" no es una URL válida en ${path}`)
+  }
+  const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
+    throw new Error(`"workerUrl" debe usar https (http solo para localhost) en ${path}`)
+  }
+  if (disabled !== undefined) {
+    if (!Array.isArray(disabled)) throw new Error(`"disabled" debe ser una lista de proveedores en ${path}`)
+    const unknown = disabled.filter((d) => typeof d !== 'string' || !Object.hasOwn(PROVIDER_LABELS, d))
+    if (unknown.length > 0) throw new Error(`"disabled" contiene proveedores desconocidos en ${path}: ${unknown.join(', ')}`)
   }
   return { workerUrl, ingestToken, disabled: (disabled ?? []) as ProviderId[] }
 }
