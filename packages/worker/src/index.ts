@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
+import { runScheduled, type CronDeps } from './cron.js'
 import { Repo } from './db.js'
 import type { Env } from './env.js'
-import { processReadings, type PipelineDeps } from './pipeline.js'
+import { processReadings } from './pipeline.js'
 import { parseIngestBody } from './validate.js'
 
 async function tokenMatches(header: string | undefined, expected: string): Promise<boolean> {
@@ -11,7 +12,7 @@ async function tokenMatches(header: string | undefined, expected: string): Promi
   return crypto.subtle.timingSafeEqual(a, b)
 }
 
-export function createWorker(deps: PipelineDeps = {}) {
+export function createWorker(deps: CronDeps = {}) {
   const app = new Hono<{ Bindings: Env }>()
 
   app.get('/health', (c) => c.text('ok'))
@@ -29,7 +30,9 @@ export function createWorker(deps: PipelineDeps = {}) {
 
   return {
     fetch: app.fetch,
-    async scheduled(): Promise<void> {},
+    async scheduled(controller, env, ctx): Promise<void> {
+      ctx.waitUntil(runScheduled(env, new Date(controller.scheduledTime), deps))
+    },
   } satisfies ExportedHandler<Env>
 }
 
