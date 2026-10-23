@@ -73,12 +73,32 @@ function credential(v: unknown): { provider: ProviderId; value: string } {
   return { provider: v.provider, value: v.value }
 }
 
+function readingOrError(v: unknown, now: Date): ProviderReading | null {
+  try {
+    return reading(v, now)
+  } catch (e) {
+    if (!(e instanceof Invalid)) throw e
+    if (!isObj(v) || !isProvider(v.provider)) return null
+    return {
+      provider: v.provider,
+      ok: false,
+      error: { kind: 'parse', message: `Lectura inválida del agente: ${e.message}` },
+      readAt: now.toISOString(),
+      source: 'local',
+    }
+  }
+}
+
 export function parseIngestBody(v: unknown, now: Date): IngestBody | null {
   try {
     check(isObj(v) && Array.isArray(v.readings), 'readings')
     const credentials = v.credentials === undefined ? [] : v.credentials
     check(Array.isArray(credentials), 'credentials')
-    return { readings: v.readings.map((r) => reading(r, now)), credentials: credentials.map(credential) }
+    const parsed = credentials.map(credential)
+    const readings = v.readings.map((r) => readingOrError(r, now)).filter((r): r is ProviderReading => r !== null)
+    const dropped = v.readings.length - readings.length
+    if (dropped > 0) console.warn(`ingest: dropped ${dropped} readings without a known provider`)
+    return { readings, credentials: parsed }
   } catch (e) {
     if (e instanceof Invalid) return null
     throw e

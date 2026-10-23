@@ -77,22 +77,45 @@ describe('POST /ingest', () => {
   it.each([
     ['malformed JSON', '{'],
     ['missing readings', {}],
-    ['unknown provider', { readings: [{ ...reading(), provider: 'chatgpt' }] }],
-    ['bad window', { readings: [{ ...reading(), quotas: [{ ...reading().quotas[0], window: 'yearly' }] }] }],
-    ['readAt in the future', { readings: [{ ...reading(), readAt: iso(6 * 60_000) }] }],
-    ['non-ISO readAt', { readings: [{ ...reading(), readAt: 'yesterday' }] }],
-    ['non-ISO resetsAt', { readings: [{ ...reading(), quotas: [{ ...reading().quotas[0], resetsAt: '23/10/2026' }] }] }],
-    ['fraction above 1', { readings: [{ ...reading(), quotas: [{ ...reading().quotas[0], remainingFraction: 1.2 }] }] }],
-    ['negative fraction', { readings: [{ ...reading(), quotas: [{ ...reading().quotas[0], remainingFraction: -0.1 }] }] }],
-    ['quota of another provider', { readings: [{ ...reading(), quotas: [{ ...reading().quotas[0], provider: 'codex' }] }] }],
-    ['bad source', { readings: [{ ...reading(), source: 'laptop' }] }],
-    ['bad error kind', { readings: [{ provider: 'mimo', ok: false, source: 'local', readAt: iso(0), error: { kind: 'boom', message: '' } }] }],
+    ['readings not an array', { readings: {} }],
     ['credential for unknown provider', { readings: [], credentials: [{ provider: 'chatgpt', value: 'x' }] }],
     ['empty credential', { readings: [], credentials: [{ provider: 'cursor', value: '' }] }],
+    ['credentials not an array', { readings: [], credentials: {} }],
   ])('returns 400 for %s', async (_name, body) => {
     expect((await post(body)).status).toBe(400)
     const rows = await env.DB.prepare('SELECT * FROM snapshots').all()
     expect(rows.results).toEqual([])
+  })
+
+  const q0 = () => reading().quotas[0]
+  it.each([
+    ['bad window', { ...reading(), quotas: [{ ...q0(), window: 'yearly' }] }, 'quota.window'],
+    ['readAt in the future', { ...reading(), readAt: iso(6 * 60_000) }, 'reading.readAt'],
+    ['non-ISO readAt', { ...reading(), readAt: 'yesterday' }, 'reading.readAt'],
+    ['non-ISO resetsAt', { ...reading(), quotas: [{ ...q0(), resetsAt: '23/10/2026' }] }, 'quota.resetsAt'],
+    ['fraction above 1', { ...reading(), quotas: [{ ...q0(), remainingFraction: 1.2 }] }, 'quota.remainingFraction'],
+    ['negative fraction', { ...reading(), quotas: [{ ...q0(), remainingFraction: -0.1 }] }, 'quota.remainingFraction'],
+    ['quota of another provider', { ...reading(), quotas: [{ ...q0(), provider: 'codex' }] }, 'quota.provider'],
+    ['bad source', { ...reading(), source: 'laptop' }, 'reading.source'],
+    ['bad error kind', { provider: 'antigravity', ok: false, source: 'local', readAt: iso(0), error: { kind: 'boom', message: '' } }, 'reading.error'],
+  ])('turns a reading with %s into a parse error reading', async (_name, bad, reason) => {
+    const good = { provider: 'mimo', ok: false, source: 'local', readAt: iso(0), error: { kind: 'network', message: 'down' } }
+    expect((await post({ readings: [bad, good] })).status).toBe(204)
+    const rows = await env.DB.prepare('SELECT provider, ok, error_kind, error_message, source FROM snapshots ORDER BY provider').all()
+    expect(rows.results).toEqual([
+      { provider: 'antigravity', ok: 0, error_kind: 'parse', error_message: `Lectura inválida del agente: ${reason}`, source: 'local' },
+      { provider: 'mimo', ok: 0, error_kind: 'network', error_message: 'down', source: 'local' },
+    ])
+  })
+
+  it('drops readings with an unknown or missing provider and keeps the rest', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const res = await post({ readings: [{ ...reading(), provider: 'chatgpt' }, { ok: true }, 'nope', reading()] })
+    expect(res.status).toBe(204)
+    const rows = await env.DB.prepare('SELECT provider, ok FROM snapshots').all()
+    expect(rows.results).toEqual([{ provider: 'antigravity', ok: 1 }])
+    expect(warn).toHaveBeenCalledWith('ingest: dropped 3 readings without a known provider')
+    warn.mockRestore()
   })
 
   it('stores pushed credentials encrypted', async () => {
