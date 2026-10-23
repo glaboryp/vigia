@@ -104,3 +104,23 @@ describe('registry', () => {
     expect(LOCAL_HTTP_PROVIDERS).toEqual([])
   })
 })
+
+describe('fetchJson extras', () => {
+  it('treats an empty 2xx body as null', async () => {
+    const fetchFn = vi.fn(async () => new Response(null, { status: 204 }))
+    expect(await fetchJson({ fetch: fetchFn }, 'https://x.test')).toEqual({ status: 204, body: null })
+  })
+
+  it('honours a caller-supplied signal', async () => {
+    const caller = new AbortController()
+    const fetchFn = vi.fn(
+      (_url: unknown, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal!.reason))
+        }),
+    )
+    const p = fetchJson({ fetch: fetchFn as unknown as typeof fetch }, 'https://x.test', { signal: caller.signal })
+    caller.abort(new Error('cancelled'))
+    await expect(p).rejects.toMatchObject({ kind: 'network', message: 'cancelled' })
+  })
+})

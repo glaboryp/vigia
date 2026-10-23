@@ -30,16 +30,19 @@ export async function fetchJson(
     let response: Response
     let text: string
     try {
-      response = await ctx.fetch(url, { ...init, signal: controller.signal })
+      const signal = init.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal
+      response = await ctx.fetch(url, { ...init, signal })
       text = await response.text()
     } catch (err) {
       throw new ProviderError('network', err instanceof Error ? err.message : String(err))
     }
+    const ok = response.status >= 200 && response.status < 300
     let body: unknown
+    if (ok && text.trim() === '') return { status: response.status, body: null }
     try {
       body = JSON.parse(text)
     } catch {
-      if (response.status >= 200 && response.status < 300) {
+      if (ok) {
         throw new ProviderError('parse', `non-JSON response body (HTTP ${response.status})`)
       }
       body = text

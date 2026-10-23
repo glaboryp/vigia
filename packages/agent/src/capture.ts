@@ -3,24 +3,81 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { CLOUD_PROVIDERS, LOCAL_HTTP_PROVIDERS } from 'core'
 
-const SENSITIVE_KEY = /token|secret|password|cookie|email|session|auth|key|id$/i
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const JWT = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+const SENSITIVE_KEY =
+  /^(access_?token|refresh_?token|id_?token|token|api_?key|secret|client_?secret|password|cookie|session_?token|authorization|email|e_?mail|username|user_?name|display_?name|name|login|phone)$/i
+const ID_KEY = /(^|_)id$|[a-z]Id$/
+const EMAIL = /[^\s@"]+@[^\s@"]+\.[^\s@"]+/g
+const JWT = /[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g
+const ID_SEGMENT = /^[A-Za-z0-9_-]{16,}$|^[0-9a-f-]{32,}$/
+
+export function redactText(text: string, secrets: string[] = []): string {
+  let out = text
+  for (const secret of [...secrets].sort((a, b) => b.length - a.length)) {
+    if (!secret) continue
+    out = out.split(secret).join('REDACTED')
+    const escaped = JSON.stringify(secret).slice(1, -1)
+    if (escaped !== secret) out = out.split(escaped).join('REDACTED')
+  }
+  return out.replace(JWT, 'REDACTED').replace(EMAIL, 'REDACTED')
+}
 
 export function redact(value: unknown): unknown {
-  if (typeof value === 'string') return EMAIL.test(value) || JWT.test(value) ? 'REDACTED' : value
+  if (typeof value === 'string') return redactText(value)
   if (Array.isArray(value)) return value.map(redact)
   if (value !== null && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([k, v]) => [k, SENSITIVE_KEY.test(k) ? 'REDACTED' : redact(v)]),
+      Object.entries(value).map(([k, v]) => [
+        k,
+        typeof v === 'string' && (SENSITIVE_KEY.test(k) || ID_KEY.test(k)) ? 'REDACTED' : redact(v),
+      ]),
     )
   }
   return value
 }
 
-function sanitizePath(url: string): string {
-  const path = new URL(url).pathname.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-  return path || 'root'
+export function credentialSecrets(raw: string, parsed: unknown): string[] {
+  const secrets = [raw.trim()]
+  if (parsed !== null && typeof parsed === 'object') {
+    for (const v of Object.values(parsed)) if (typeof v === 'string' && v.length >= 8) secrets.push(v)
+  }
+  return secrets.filter(Boolean)
+}
+
+export function sanitizePath(url: string): string {
+  const segments = new URL(url).pathname
+    .split('/')
+    .filter(Boolean)
+    .map((s) => (ID_SEGMENT.test(s) ? 'x' : s.replace(/[^A-Za-z0-9]+/g, '-')))
+  return segments.join('-').replace(/^-+|-+$/g, '').slice(0, 80) || 'root'
+}
+
+export function createRecordingFetch(
+  dir: string,
+  secrets: string[],
+  log: (path: string) => void,
+  baseFetch: typeof fetch = fetch,
+): typeof fetch {
+  let n = 0
+  return async (input, init) => {
+    const response = await baseFetch(input, init)
+    const text = await response.clone().text()
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    let content: string
+    let ext: string
+    try {
+      content = JSON.stringify(redact(JSON.parse(text)), null, 2) + '\n'
+      ext = 'json'
+    } catch {
+      content = text
+      ext = 'txt'
+    }
+    content = redactText(content, secrets)
+    const file = join(dir, `${++n}-${sanitizePath(url)}.${ext}`)
+    await mkdir(dir, { recursive: true })
+    await writeFile(file, content)
+    log(file)
+    return response
+  }
 }
 
 function parseArgs(argv: string[]): { id?: string; credentialFile?: string } {
@@ -51,34 +108,27 @@ export async function main(argv: string[]): Promise<number> {
     return 1
   }
 
+  const credential = provider.parseCredential(raw.trim())
+  const secrets = credentialSecrets(raw, credential)
   const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), '../../core/test/fixtures', id)
-  await mkdir(fixturesDir, { recursive: true })
-  let n = 0
-  const recordingFetch: typeof fetch = async (input, init) => {
-    const response = await fetch(input, init)
-    const text = await response.clone().text()
-    let body: unknown
-    try {
-      body = JSON.parse(text)
-    } catch {
-      body = text
-    }
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    const file = join(fixturesDir, `${++n}-${sanitizePath(url)}.json`)
-    await writeFile(file, JSON.stringify(redact(body), null, 2) + '\n')
-    console.log(file)
-    return response
-  }
-
   const result = await provider.read({
-    fetch: recordingFetch,
+    fetch: createRecordingFetch(fixturesDir, secrets, (f) => console.log(f)),
     now: () => new Date(),
-    credential: provider.parseCredential(raw.trim()),
+    credential,
   })
-  if (!result.reading.ok) console.error(`Lectura fallida: ${result.reading.error.kind}`)
+  if (!result.reading.ok) {
+    const { kind, message } = result.reading.error
+    console.error(`Lectura fallida (${kind}): ${redactText(message, secrets)}`)
+    return 1
+  }
   return 0
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main(process.argv.slice(2)).then((code) => process.exit(code))
+  main(process.argv.slice(2))
+    .catch(() => {
+      console.error('Error inesperado durante la captura')
+      return 1
+    })
+    .then((code) => process.exit(code))
 }
