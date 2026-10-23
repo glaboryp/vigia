@@ -103,6 +103,14 @@ export class Repo {
       .run()
   }
 
+  async hasSnapshot(r: ProviderReading): Promise<boolean> {
+    const row = await this.db
+      .prepare('SELECT 1 FROM snapshots WHERE provider = ? AND source = ? AND read_at = ? LIMIT 1')
+      .bind(r.provider, r.source, iso(r.readAt))
+      .first()
+    return row !== null
+  }
+
   async getCurrentQuotas(): Promise<StoredQuota[]> {
     const { results } = await this.db
       .prepare('SELECT * FROM current_quotas ORDER BY provider, quota_id')
