@@ -74,3 +74,23 @@ export function decodeJwtPayload(token: string | undefined): JsonRecord | undefi
 export function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 }
+
+export const BROWSER_USER_AGENT =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+export function parseCookieCredential(raw: string, label: string): { cookie: string } {
+  const text = raw.trim()
+  let cookie: string | undefined
+  if (text.startsWith('{')) {
+    const root: unknown = JSON.parse(text)
+    if (isRecord(root)) cookie = nonEmptyString(root.cookie)
+  } else {
+    cookie = nonEmptyString(text.replace(/^cookie:\s*/i, ''))
+  }
+  if (!cookie) throw new Error(`${label} credential has no cookie`)
+  return { cookie }
+}
+
+export function isRedirect(status: number): boolean {
+  return status >= 300 && status < 400
+}

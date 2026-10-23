@@ -1,0 +1,7 @@
+{
+  "_synthetic": true,
+  "billingCycleStart": "2026-10-20T00:00:00.000Z",
+  "billingCycleEnd": "2026-10-27T00:00:00.000Z",
+  "membershipType": "pro",
+  "individualUsage": { "plan": { "used": 100, "limit": 400, "totalPercentUsed": 25.0 } }
+}
