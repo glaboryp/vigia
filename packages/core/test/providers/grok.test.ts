@@ -343,6 +343,69 @@ describe('grokProvider', () => {
     expect(reading).toMatchObject({ ok: false, error: { kind } })
   })
 
+  it('keeps the old access token and stores the rotated refresh token when the refresh omits access_token', async () => {
+    const fetchFn = mockFetch((url) =>
+      url === TOKEN_URL ? jsonResponse({ refresh_token: 'refresh-new', expires_in: 60 }) : grpcResponse(OK_BODY),
+    )
+    const result = await grokProvider.read(ctx(expiring(), fetchFn))
+    expect(result.reading.ok).toBe(true)
+    expect(result.rotatedCredential).toMatchObject({ accessToken: 'access-old', refreshToken: 'refresh-new' })
+    expect(authHeader(fetchFn.mock.calls[1]![1]!)).toBe('Bearer access-old')
+  })
+
+  it('returns auth with the rotated refresh token when the kept access token is rejected', async () => {
+    const fetchFn = mockFetch((url) =>
+      url === TOKEN_URL ? jsonResponse({ refresh_token: 'refresh-new' }) : grpcResponse([], {}, 401),
+    )
+    const result = await grokProvider.read(ctx(expiring(), fetchFn))
+    expect(result.reading).toMatchObject({ ok: false, error: { kind: 'auth' } })
+    expect(result.rotatedCredential?.refreshToken).toBe('refresh-new')
+    expect(fetchFn.mock.calls.map(([u]) => u)).toEqual([TOKEN_URL, BILLING_URL])
+  })
+
+  it('maps a plain billing 403 to auth without refreshing', async () => {
+    const fetchFn = mockFetch(() => grpcResponse([], {}, 403))
+    const result = await grokProvider.read(ctx(cred(), fetchFn))
+    expect(result.reading).toMatchObject({ ok: false, error: { kind: 'auth' } })
+    expect(result.rotatedCredential).toBeUndefined()
+    expect(fetchFn.mock.calls.map(([u]) => u)).toEqual([BILLING_URL])
+  })
+
+  it.each([
+    ['zero', 0n],
+    ['beyond year 9999', 253402300800n],
+    ['a negative int64', 18446744073709551615n],
+  ])('is a parse error for a period end that is %s', async (_n, seconds) => {
+    const body = frame(0, lenField(1, lenField(5, [...key(1, 0), ...varint(seconds)])))
+    const fetchFn = mockFetch(() => grpcResponse(body))
+    const { reading } = await grokProvider.read(ctx(cred(), fetchFn))
+    expect(reading).toMatchObject({ ok: false, error: { kind: 'parse' } })
+  })
+
+  it('is a parse error for a compressed data frame', async () => {
+    const fetchFn = mockFetch(() => grpcResponse(frame(0x01, creditsMessage({ end: PERIOD_END }))))
+    const { reading } = await grokProvider.read(ctx(cred(), fetchFn))
+    expect(reading).toMatchObject({
+      ok: false,
+      error: { kind: 'parse', message: 'Respuesta gRPC comprimida no soportada' },
+    })
+  })
+
+  it.each([
+    ['unix seconds', Math.floor(NOW.getTime() / 1000) + 300],
+    ['unix milliseconds', NOW.getTime() + 300_000],
+    ['a naive UTC timestamp', '2026-10-23 10:05:00'],
+  ])('reads expires_at given as %s', async (_n, expiresAt) => {
+    const parsed = grokProvider.parseCredential(
+      JSON.stringify({ [SCOPE]: { key: 'access-old', refresh_token: 'refresh-old', oidc_client_id: 'c', expires_at: expiresAt } }),
+    )
+    expect(Date.parse(parsed.expiresAt!)).toBe(NOW.getTime() + 300_000)
+    const fetchFn = mockFetch((url) => (url === TOKEN_URL ? tokenOk() : grpcResponse(OK_BODY)))
+    const result = await grokProvider.read(ctx(parsed, fetchFn))
+    expect(fetchFn.mock.calls[0]![0]).toBe(TOKEN_URL)
+    expect(result.rotatedCredential?.accessToken).toBe('access-new')
+  })
+
   it('maps a network failure to network without throwing', async () => {
     const fetchFn = mockFetch(() => {
       throw new TypeError('fetch failed')

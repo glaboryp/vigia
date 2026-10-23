@@ -76,13 +76,13 @@ async function refresh(ctx: ProviderContext<CodexCredential>, cred: CodexCredent
   })
   if (status < 200 || status >= 300) {
     const code = refreshErrorCode(body)
-    if ((code && AUTH_REFRESH_CODES.has(code)) || status === 400 || status === 401) {
+    if ((code && AUTH_REFRESH_CODES.has(code)) || status === 401) {
       throw new ProviderError('auth', `Sesión de Codex caducada (${code ?? `HTTP ${status}`}); vuelve a iniciar sesión`)
     }
-    throw new ProviderError(classifyHttp(status) ?? 'unavailable', `Codex token refresh HTTP ${status}`)
+    throw new ProviderError('network', `Codex token refresh HTTP ${status}`)
   }
-  const accessToken = isRecord(body) ? nonEmptyString(body.access_token) : undefined
-  if (!isRecord(body) || !accessToken) throw new ProviderError('parse', 'Codex token refresh returned no access token')
+  if (!isRecord(body)) throw new ProviderError('parse', 'Unexpected Codex token refresh response')
+  const accessToken = nonEmptyString(body.access_token) ?? cred.accessToken
   const idToken = nonEmptyString(body.id_token) ?? cred.idToken
   const next: CodexCredential = {
     accessToken,

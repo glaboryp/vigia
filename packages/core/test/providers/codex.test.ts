@@ -179,7 +179,6 @@ describe('codexProvider', () => {
     ['refresh_token_expired', 401, { code: 'refresh_token_expired' }],
     ['refresh_token_invalidated', 401, { error: 'refresh_token_invalidated' }],
     ['invalid_grant', 400, { error: 'invalid_grant', error_description: 'bad' }],
-    ['a bare 400', 400, {}],
     ['a bare 401', 401, 'nope'],
   ])('maps a refresh failure with %s to auth', async (_n, status, body) => {
     const fetchFn = mockFetch(() => jsonResponse(body, status))
@@ -189,16 +188,49 @@ describe('codexProvider', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1)
   })
 
-  it('maps a refresh 5xx to network', async () => {
-    const fetchFn = mockFetch(() => jsonResponse('down', 503))
+  it.each([
+    ['a 5xx', 503, 'down'],
+    ['a bare 400 without a known code', 400, {}],
+    ['a 400 with an unknown code', 400, { error: 'temporarily_unavailable' }],
+  ])('maps a refresh failure with %s to network', async (_n, status, body) => {
+    const fetchFn = mockFetch(() => jsonResponse(body, status))
     const result = await codexProvider.read(ctx(cred({ accessToken: '' }), fetchFn))
     expect(result.reading).toMatchObject({ ok: false, error: { kind: 'network' } })
+    expect(result.rotatedCredential).toBeUndefined()
   })
 
-  it('is a parse error when the refresh response lacks an access token', async () => {
-    const fetchFn = mockFetch(() => jsonResponse({ refresh_token: 'rt-new' }))
+  it('keeps the old access token and stores the rotated refresh token when the refresh omits access_token', async () => {
+    const oldAccess = jwt({ exp: NOW_S + 60 })
+    const fetchFn = mockFetch((url) =>
+      url === TOKEN_URL
+        ? jsonResponse({ refresh_token: 'rt-new', id_token: 'id-new' })
+        : jsonResponse(fixture('codex/synthetic-usage.json')),
+    )
+    const result = await codexProvider.read(ctx(cred({ accessToken: oldAccess }), fetchFn))
+    expect(result.reading.ok).toBe(true)
+    expect(result.rotatedCredential).toEqual({
+      accessToken: oldAccess,
+      refreshToken: 'rt-new',
+      idToken: 'id-new',
+      accountId: 'acct-1',
+      lastRefresh: NOW.toISOString(),
+    })
+    expect(auth(fetchFn.mock.calls[1]![1]!)).toBe(`Bearer ${oldAccess}`)
+  })
+
+  it('returns auth with the rotated refresh token when the kept access token is rejected', async () => {
+    const fetchFn = mockFetch((url) => (url === TOKEN_URL ? jsonResponse({ refresh_token: 'rt-new' }) : jsonResponse({}, 401)))
+    const result = await codexProvider.read(ctx(cred({ accessToken: jwt({ exp: NOW_S - 1 }) }), fetchFn))
+    expect(result.reading).toMatchObject({ ok: false, error: { kind: 'auth' } })
+    expect(result.rotatedCredential?.refreshToken).toBe('rt-new')
+    expect(fetchFn.mock.calls.map(([u]) => u)).toEqual([TOKEN_URL, USAGE_URL])
+  })
+
+  it('is a parse error when the refresh response is not a JSON object', async () => {
+    const fetchFn = mockFetch(() => jsonResponse([1, 2]))
     const result = await codexProvider.read(ctx(cred({ accessToken: '' }), fetchFn))
     expect(result.reading).toMatchObject({ ok: false, error: { kind: 'parse' } })
+    expect(result.rotatedCredential).toBeUndefined()
   })
 
   it('refreshes once after a usage 401 and retries the usage call', async () => {

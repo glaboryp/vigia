@@ -2,7 +2,7 @@ import { ProviderError, classifyHttp, errorFromUnknown, fetchBytes, fetchJson } 
 import { type ProtoField, decodeFields, decodeMessage } from '../protobuf.js'
 import type { ErrorKind, ProviderReading, Quota } from '../types.js'
 import { okReading, type Provider, type ProviderContext } from './contract.js'
-import { type JsonRecord, clampFraction, isRecord, nonEmptyString } from './util.js'
+import { type JsonRecord, clampFraction, isRecord, nonEmptyString, toIso } from './util.js'
 
 export interface GrokCredential {
   scope: string
@@ -20,11 +20,18 @@ const REFRESH_MARGIN_MS = 10 * 60 * 1000
 const DEFAULT_TOKEN_TTL_S = 21_600
 const KNOWN_FIELDS = new Set(['key', 'refresh_token', 'expires_at', 'oidc_client_id', 'oidc_issuer'])
 const ACTIVE_KEYS = ['active', 'active_account', 'active_scope', 'current']
+const MAX_TIMESTAMP_S = 253402300799n
 
-function expiryMs(value: string | undefined): number | undefined {
-  if (!value) return undefined
-  const text = /[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value.replace(' ', 'T')}Z`
-  const ms = Date.parse(text)
+class UnauthenticatedError extends ProviderError {}
+
+function expiryMs(value: unknown): number | undefined {
+  if (typeof value === 'number' || (typeof value === 'string' && /^\d+(\.\d+)?$/.test(value.trim()))) {
+    const iso = toIso(value)
+    return iso ? Date.parse(iso) : undefined
+  }
+  const text = nonEmptyString(value)
+  if (!text) return undefined
+  const ms = Date.parse(/(?:[zZ]|[+-]\d\d:?\d\d)$/.test(text) ? text : `${text.replace(' ', 'T')}Z`)
   return Number.isFinite(ms) ? ms : undefined
 }
 
@@ -39,7 +46,7 @@ function parseCredential(raw: string): GrokCredential {
   const active = usable.filter((u) => u.entry.active === true || named.includes(u.scope))
   const xai = usable.filter((u) => u.scope.startsWith('https://auth.x.ai::'))
   const pool = active.length > 0 ? active : xai.length > 0 ? xai : usable
-  const rank = (u: (typeof usable)[number]) => expiryMs(nonEmptyString(u.entry.expires_at)) ?? -Infinity
+  const rank = (u: (typeof usable)[number]) => expiryMs(u.entry.expires_at) ?? -Infinity
   const best = pool.reduce((a, b) => {
     const ra = rank(a)
     const rb = rank(b)
@@ -52,7 +59,8 @@ function parseCredential(raw: string): GrokCredential {
     entry: Object.fromEntries(Object.entries(entry).filter(([k]) => !KNOWN_FIELDS.has(k))),
   }
   const refreshToken = nonEmptyString(entry.refresh_token)
-  const expiresAt = nonEmptyString(entry.expires_at)
+  const expiresMs = expiryMs(entry.expires_at)
+  const expiresAt = expiresMs === undefined ? undefined : new Date(expiresMs).toISOString()
   const clientId = nonEmptyString(entry.oidc_client_id)
   const issuer = nonEmptyString(entry.oidc_issuer)
   if (refreshToken) cred.refreshToken = refreshToken
@@ -102,8 +110,8 @@ async function refresh(ctx: ProviderContext<GrokCredential>, cred: GrokCredentia
     if (classifyHttp(status) === 'network') throw new ProviderError('network', `Grok token refresh HTTP ${status}`)
     throw new ProviderError('auth', `Sesión de Grok caducada (HTTP ${status}); vuelve a iniciar sesión`)
   }
-  const accessToken = isRecord(body) ? nonEmptyString(body.access_token) : undefined
-  if (!isRecord(body) || !accessToken) throw new ProviderError('parse', 'Grok token refresh returned no access token')
+  if (!isRecord(body)) throw new ProviderError('parse', 'Unexpected Grok token refresh response')
+  const accessToken = nonEmptyString(body.access_token) ?? cred.accessToken
   const ttl = typeof body.expires_in === 'number' && body.expires_in > 0 ? body.expires_in : DEFAULT_TOKEN_TTL_S
   return {
     ...cred,
@@ -117,8 +125,10 @@ function checkGrpcStatus(code: string | null | undefined, message: string | null
   if (code === null || code === undefined || code.trim() === '') return
   const status = Number(code.trim())
   if (status === 0) return
-  const kind: ErrorKind = status === 16 ? 'auth' : status === 14 ? 'network' : 'unavailable'
-  throw new ProviderError(kind, `Grok gRPC status ${code.trim()}${message ? `: ${message}` : ''}`)
+  const text = `Grok gRPC status ${code.trim()}${message ? `: ${message}` : ''}`
+  if (status === 16) throw new UnauthenticatedError('auth', text)
+  const kind: ErrorKind = status === 14 ? 'network' : 'unavailable'
+  throw new ProviderError(kind, text)
 }
 
 function checkTrailer(block: Uint8Array): void {
@@ -142,7 +152,10 @@ function splitFrames(body: Uint8Array): { data?: Uint8Array; trailers: Uint8Arra
     if (start + length > body.length) throw new ProviderError('parse', 'Truncated Grok gRPC-web frame')
     const payload = body.subarray(start, start + length)
     if (flags & 0x80) trailers.push(payload)
-    else data ??= payload
+    else if (!data) {
+      if (flags & 0x01) throw new ProviderError('parse', 'Respuesta gRPC comprimida no soportada')
+      data = payload
+    }
     pos = start + length
   }
   return { data, trailers }
@@ -185,6 +198,7 @@ function parseCredits(data: Uint8Array): Quota {
     }
   }
   if (typeof seconds !== 'bigint') throw new ProviderError('parse', 'Grok credits config has no period end')
+  if (seconds <= 0n || seconds > MAX_TIMESTAMP_S) throw new ProviderError('parse', 'Grok period end is out of range')
   return {
     provider: 'grok',
     quotaId: 'weekly',
@@ -209,6 +223,7 @@ async function readBilling(ctx: ProviderContext<GrokCredential>, cred: GrokCrede
     },
     body: new Uint8Array(5),
   })
+  if (status === 401) throw new UnauthenticatedError('auth', 'Grok HTTP 401')
   const kind = classifyHttp(status)
   if (kind) throw new ProviderError(kind, `Grok HTTP ${status}`)
   checkGrpcStatus(headers.get('grpc-status'), headers.get('grpc-message'))
@@ -237,7 +252,7 @@ export const grokProvider: Provider<GrokCredential> = {
       try {
         quotas = await readBilling(ctx, cred)
       } catch (err) {
-        if (!(err instanceof ProviderError) || err.kind !== 'auth' || rotated || !canRefresh(cred)) throw err
+        if (!(err instanceof UnauthenticatedError) || rotated || !canRefresh(cred)) throw err
         cred = rotated = await refresh(ctx, cred)
         quotas = await readBilling(ctx, cred)
       }
