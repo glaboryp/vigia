@@ -12,19 +12,20 @@ export interface UnitPaths {
   agentDir: string
 }
 
+const spec = (s: string): string => s.replace(/%/g, '%%')
 const quote = (s: string): string => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 
 export function renderService({ nodePath, agentDir }: UnitPaths): string {
   const tsx = join(agentDir, 'node_modules', 'tsx', 'dist', 'cli.mjs')
-  const path = ['%h/.local/bin', dirname(nodePath), '/usr/local/bin', '/usr/bin', '/bin']
+  const path = ['%h/.local/bin', spec(dirname(nodePath)), '/usr/local/bin', '/usr/bin', '/bin']
   return `[Unit]
 Description=VigIA agent (local AI quota readings)
 
 [Service]
 Type=oneshot
-WorkingDirectory=${agentDir}
-Environment=PATH=${path.join(':')}
-ExecStart=${quote(nodePath)} ${quote(tsx)} src/main.ts
+WorkingDirectory=${spec(agentDir)}
+Environment=${quote(`PATH=${path.join(':')}`)}
+ExecStart=${quote(spec(nodePath))} ${quote(spec(tsx))} src/main.ts
 `
 }
 

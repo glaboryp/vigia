@@ -12,6 +12,7 @@ export async function pushCredential(cfg: AgentConfig, id: string, raw: string, 
     }
     throw new Error(`Proveedor desconocido: ${id}. Disponibles: ${CLOUD_PROVIDERS.map((p) => p.id).join(', ')}`)
   }
+  if (raw.trim() === '') throw new Error('El fichero de credencial está vacío')
   let value: string
   try {
     value = provider.serializeCredential(provider.parseCredential(raw.trim()))

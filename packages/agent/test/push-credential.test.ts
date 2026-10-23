@@ -34,6 +34,12 @@ describe('pushCredential', () => {
     expect(f).not.toHaveBeenCalled()
   })
 
+  it('rejects an empty credential file', async () => {
+    const f = ok()
+    await expect(pushCredential(cfg, 'copilot', ' \n\t', f)).rejects.toThrow(/vacío/)
+    expect(f).not.toHaveBeenCalled()
+  })
+
   it('fails fast on an invalid credential without leaking it', async () => {
     const f = ok()
     const err = await pushCredential(cfg, 'codex', '{"secret-marker": 1', f).catch((e) => e)

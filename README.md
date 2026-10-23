@@ -72,7 +72,7 @@ Cada uno se sube con `pnpm exec wrangler secret put <NOMBRE>` (pega el valor cua
 pnpm exec wrangler deploy
 ```
 
-Anota la URL `https://vigia.<tu-subdominio>.workers.dev`. Comprueba `curl https://vigia.<tu-subdominio>.workers.dev/health` (responde `ok`).
+Anota la URL `https://vigia.<tu-subdominio>.workers.dev`.
 
 ### 5. Webhook de Telegram
 
@@ -86,15 +86,16 @@ El Worker rechaza cualquier petición sin la cabecera `X-Telegram-Bot-Api-Secret
 
 ### 6. Cloudflare Access sobre workers.dev
 
-La página `/` exige un JWT de Access; sin Access devuelve 403.
+La página `/` exige un JWT de Access (sin él devuelve 403), pero `/ingest`, `/telegram` y `/health` no deben pasar por el login: tienen su propia autenticación (token Bearer, secreto del webhook). Por eso hacen falta cuatro aplicaciones, creadas en este orden.
 
-1. En el panel de Cloudflare: **Zero Trust → Access → Applications → Add an application → Self-hosted**.
-2. Dominio: `vigia.<tu-subdominio>.workers.dev`. Si Zero Trust te pide crear un equipo, el dominio de equipo (`<equipo>.cloudflareaccess.com`) es tu `ACCESS_TEAM_DOMAIN`.
-3. Política **Allow** con *Emails* = `gloria.labory@homedoctor.es`, método de login "One-time PIN".
-4. Guarda y copia el **Application Audience (AUD) Tag** (en la aplicación, pestaña *Overview*): es `ACCESS_AUD`.
-5. Sube ambos secretos (`wrangler secret put ACCESS_TEAM_DOMAIN` y `ACCESS_AUD`) y vuelve a ejecutar `wrangler deploy`.
-
-Importante: Access debe cubrir solo la página. `/ingest`, `/telegram` y `/health` se protegen con sus propios secretos, así que si Access cubre todo el hostname deberás excluir esas rutas (política **Bypass** para `/ingest`, `/telegram`, `/health`) o el agente y Telegram recibirán la pantalla de login.
+1. En el panel de Cloudflare: **Zero Trust → Access → Applications → Add an application → Self-hosted**. Si Zero Trust te pide crear un equipo, el dominio de equipo (`<equipo>.cloudflareaccess.com`) es tu `ACCESS_TEAM_DOMAIN`.
+2. Aplicación principal: dominio `vigia.<tu-subdominio>.workers.dev`, sin path (todo el hostname). Política **Allow** con *Emails* = `gloria.labory@homedoctor.es`.
+3. Guarda y copia el **Application Audience (AUD) Tag** (pestaña *Overview*): es `ACCESS_AUD`.
+4. Crea otras tres aplicaciones Self-hosted, una por cada path: `vigia.<tu-subdominio>.workers.dev/ingest`, `.../telegram` y `.../health`. En cada una pon una política con acción **Bypass** e *Include* = **Everyone**. Access aplica la aplicación más específica para cada ruta, así que estos tres paths quedan fuera del login y la principal protege el resto.
+5. Sube los secretos `ACCESS_TEAM_DOMAIN` y `ACCESS_AUD` con `wrangler secret put` y vuelve a ejecutar `wrangler deploy`.
+6. Verifica:
+   - `curl https://vigia.<tu-subdominio>.workers.dev/health` responde `ok` sin pedir login.
+   - Abrir `https://vigia.<tu-subdominio>.workers.dev/` en el navegador pide el login de Access (código por email) y luego muestra la página.
 
 ## Credenciales por herramienta
 
@@ -104,7 +105,7 @@ Las herramientas de nube se leen desde el Worker: sube cada credencial con
 pnpm --filter agent push-credential <id> <fichero>
 ```
 
-(`id` ∈ `copilot`, `kilo`, `qoder`, `freebuff`, `codex`, `grok`). El script usa la configuración del agente (ver más abajo), valida el formato en local antes de enviar y nunca imprime la credencial. Borra el fichero cuando termines (`shred -u <fichero>`). Hasta que haya un agente configurado, crea `~/.config/vigia/agent.json` primero.
+(`id` ∈ `copilot`, `kilo`, `qoder`, `freebuff`, `codex`, `grok`). Como `pnpm --filter` se ejecuta dentro de `packages/agent`, la ruta del fichero debe ser absoluta o empezar por `~/` (no relativa). El script usa la configuración del agente (ver más abajo), valida el formato en local antes de enviar y nunca imprime la credencial. Borra el fichero cuando termines (`shred -u <fichero>`). Hasta que haya un agente configurado, crea `~/.config/vigia/agent.json` primero.
 
 | Herramienta | Formato del fichero |
 |---|---|
@@ -119,7 +120,7 @@ Si el fichero no es válido para esa herramienta, el script lo dice sin enviar n
 
 ### Copilot, Kilo, Qoder, Freebuff
 
-Cada una necesita un token estático. Dónde encontrarlo (son rutas no oficiales; si cambian, la herramienta falla con "No puedo leer X" y habrá que revisarlas):
+Cada una necesita un token estático. El token suele estar anidado dentro de `apps.json` / `credentials.json`: extrae solo el valor. Dónde encontrarlo (son rutas no oficiales; si cambian, la herramienta falla con "No puedo leer X" y habrá que revisarlas):
 
 - **Copilot**: el token OAuth de GitHub que usa el plugin de Copilot, normalmente en `~/.config/github-copilot/apps.json` (campo `oauth_token`). No caduca.
 - **Kilo**: el token de sesión de Kilo (dura aproximadamente un año). Cópialo del fichero de credenciales del CLI de Kilo o de las herramientas de desarrollador del navegador en app.kilo.ai.
@@ -198,7 +199,7 @@ El agente lee las cookies de Brave (perfil `Default`) y hace las peticiones desd
    pnpm --filter agent install-service
    ```
 
-   Esto escribe `~/.config/systemd/user/vigia-agent.{service,timer}` con rutas absolutas a `node` y a `tsx` del repositorio (no hace falta pnpm global), y ejecuta `systemctl --user daemon-reload` y `systemctl --user enable --now vigia-agent.timer`. El timer corre 2 min después de arrancar la sesión y cada 30 min (`Persistent=true`). El servicio incluye `~/.local/bin` en el `PATH` para encontrar `agy`.
+   Esto escribe `~/.config/systemd/user/vigia-agent.{service,timer}` con rutas absolutas a `node` y a `tsx` del repositorio (no hace falta pnpm global), y ejecuta `systemctl --user daemon-reload` y `systemctl --user enable --now vigia-agent.timer`. El timer corre 2 min después de arrancar la sesión y cada 30 min. El servicio incluye `~/.local/bin` en el `PATH` para encontrar `agy`.
 
    Si cambias de versión de Node o mueves el repositorio, vuelve a ejecutar `install-service`.
 
@@ -249,7 +250,7 @@ No borres `cursorTokenHash` (solo evita volver a subir el mismo token de Cursor)
 Los proveedores se escribieron contra respuestas documentadas; los ficheros de `packages/core/test/fixtures` son **sintéticos** hasta que los sustituyas por capturas reales. Para cada herramienta:
 
 ```bash
-pnpm --filter agent capture <id> --credential-file <fichero-de-credencial>
+pnpm --filter agent capture <id> --credential-file <ruta-absoluta-o-~/-del-fichero>
 # o con variable de entorno: VIGIA_CRED_<ID>=... pnpm --filter agent capture <id>
 ```
 
