@@ -1,6 +1,7 @@
 import {
   escapeHtml,
   formatMadrid,
+  formatPercent,
   PROVIDER_LABELS,
   sortByPriority,
   statusMessage,
@@ -103,7 +104,7 @@ function priorityMessage(quotas: StoredQuota[], now: Date): string {
     const siblings = usable.filter((o) => o.provider === q.provider).length
     const label = escapeHtml(PROVIDER_LABELS[q.provider])
     const name = siblings > 1 ? ` · ${escapeHtml(q.name)}` : ''
-    return `• <b>${label}</b>${name} — ${Math.round(q.remainingFraction * 100)} % · se renueva ${formatMadrid(q.resetsAt)}`
+    return `• <b>${label}</b>${name} — ${escapeHtml(formatPercent(q.remainingFraction))} · se renueva ${formatMadrid(q.resetsAt)}`
   })
   return ['🎯 <b>Qué usar primero</b>', ...lines].join('\n')
 }

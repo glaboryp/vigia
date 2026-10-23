@@ -25,6 +25,12 @@ export const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replac
 
 const MAX_ERROR_CHARS = 200
 
+export function formatPercent(fraction: number): string {
+  if (fraction > 0 && fraction < 0.01) return '<1 %'
+  if (fraction > 0.99 && fraction < 1) return '>99 %'
+  return `${Math.round(fraction * 100)} %`
+}
+
 export const shortError = (message: string): string =>
   message.length > MAX_ERROR_CHARS ? `${message.slice(0, MAX_ERROR_CHARS)}…` : message
 
@@ -49,7 +55,7 @@ function amount(q: TrackedQuota): string {
 }
 
 function quotaLine(q: TrackedQuota, siblings: number, now: Date): string {
-  const pct = `${Math.round(q.remainingFraction * 100)} %`
+  const pct = escapeHtml(formatPercent(q.remainingFraction))
   const renewal =
     Date.parse(q.resetsAt) > now.getTime()
       ? `se renueva ${formatMadrid(q.resetsAt)} (${formatRelative(now.toISOString(), q.resetsAt)})`
@@ -70,7 +76,7 @@ export function useOrLoseMessage(quotas: TrackedQuota[], now: Date): string {
 }
 
 export function renewedMessage(q: TrackedQuota): string {
-  const line = `${displayName(q, 2)} — ${Math.round(q.remainingFraction * 100)} %${amount(q)}`
+  const line = `${displayName(q, 2)} — ${escapeHtml(formatPercent(q.remainingFraction))}${amount(q)}`
   return `🔄 <b>Cuota renovada</b>\nYa tienes cuota otra vez: ${line} · próxima renovación ${formatMadrid(q.resetsAt)}`
 }
 

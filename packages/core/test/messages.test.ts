@@ -66,6 +66,16 @@ describe('useOrLoseMessage', () => {
     `)
   })
 
+  it('never rounds a non-empty or non-full quota to 0 % or 100 %', () => {
+    const line = (remainingFraction: number) => useOrLoseMessage([tracked({ remainingFraction })], now).split('\n')[2]
+    expect(line(0.004)).toContain('— &lt;1 % ·')
+    expect(line(0.995)).toContain('— &gt;99 % ·')
+    expect(line(0)).toContain('— 0 % ·')
+    expect(line(1)).toContain('— 100 % ·')
+    expect(line(0.014)).toContain('— 1 % ·')
+    expect(renewedMessage(tracked({ remainingFraction: 0.996 }))).toContain('&gt;99 %')
+  })
+
   it('escapes HTML in quota names', () => {
     const msg = useOrLoseMessage([tracked({ name: 'A <b> & C' }), tracked({ quotaId: 'other', name: 'Otra' })], now)
     expect(msg).toMatchInlineSnapshot(`

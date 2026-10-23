@@ -132,6 +132,12 @@ describe('POST /telegram', () => {
     expect(text).not.toContain('Qoder')
   })
 
+  it('/prioridad shows <1 % for an almost empty quota', async () => {
+    await seedQuota({ provider: 'codex', quotaId: 'a', remainingFraction: 0.004 })
+    await send('/prioridad')
+    expect(tg.texts[0]).toContain('— &lt;1 % ·')
+  })
+
   it('/historial without data', async () => {
     await send('/historial Cursor')
     expect(tg.texts).toEqual(['Aún no hay historial de Cursor'])
