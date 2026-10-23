@@ -53,6 +53,26 @@ export async function fetchJson(
   }
 }
 
+export async function fetchBytes(
+  ctx: { fetch: typeof fetch },
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = 15_000,
+): Promise<{ status: number; headers: Headers; body: Uint8Array }> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new Error(`timeout after ${timeoutMs} ms`)), timeoutMs)
+  try {
+    const signal = init.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal
+    const response = await ctx.fetch(url, { ...init, signal })
+    const body = new Uint8Array(await response.arrayBuffer())
+    return { status: response.status, headers: response.headers, body }
+  } catch (err) {
+    throw new ProviderError('network', err instanceof Error ? err.message : String(err))
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export function errorFromUnknown(provider: ProviderId, source: Source, err: unknown, now: Date): ProviderReading {
   if (err instanceof ProviderError) return errorReading(provider, source, err.kind, err.message, now)
   return errorReading(provider, source, 'unavailable', err instanceof Error ? err.message : String(err), now)

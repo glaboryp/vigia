@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ProviderError, classifyHttp, errorFromUnknown, fetchJson } from '../src/http.js'
+import { ProviderError, classifyHttp, errorFromUnknown, fetchBytes, fetchJson } from '../src/http.js'
 import { errorReading, okReading } from '../src/providers/contract.js'
 import { CLOUD_PROVIDERS, LOCAL_HTTP_PROVIDERS } from '../src/providers/registry.js'
 
@@ -123,5 +123,36 @@ describe('fetchJson extras', () => {
     const p = fetchJson({ fetch: fetchFn as unknown as typeof fetch }, 'https://x.test', { signal: caller.signal })
     caller.abort(new Error('cancelled'))
     await expect(p).rejects.toMatchObject({ kind: 'network', message: 'cancelled' })
+  })
+})
+
+describe('fetchBytes', () => {
+  it('returns status, headers and raw bytes for any status', async () => {
+    const fetchFn = vi.fn(async () => new Response(Uint8Array.from([1, 2, 0x80]), { status: 401, headers: { 'grpc-status': '16' } }))
+    const res = await fetchBytes({ fetch: fetchFn }, 'https://x.test')
+    expect(res.status).toBe(401)
+    expect(res.headers.get('grpc-status')).toBe('16')
+    expect([...res.body]).toEqual([1, 2, 0x80])
+  })
+
+  it('throws network when fetch rejects', async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new TypeError('fetch failed')
+    })
+    await expect(fetchBytes({ fetch: fetchFn }, 'https://x.test')).rejects.toMatchObject({ kind: 'network' })
+  })
+
+  it('aborts after 15s by default with a network error', async () => {
+    vi.useFakeTimers()
+    const fetchFn = vi.fn(
+      (_url: unknown, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal!.reason))
+        }),
+    )
+    const p = fetchBytes({ fetch: fetchFn as unknown as typeof fetch }, 'https://x.test')
+    const assertion = expect(p).rejects.toMatchObject({ kind: 'network' })
+    await vi.advanceTimersByTimeAsync(15_000)
+    await assertion
   })
 })
