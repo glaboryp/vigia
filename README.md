@@ -7,7 +7,7 @@ VigIA vigila las cuotas de tus herramientas de IA (Copilot, Kilo, Qoder, Freebuf
 - "Úsalo o piérdelo": una cuota semanal (≤ 1 día) o mensual (≤ 7 días) a punto de renovarse con saldo sin gastar. Un único mensaje por evaluación, ordenado por prioridad.
 - "Ya tienes cuota otra vez" cuando una cuota agotada se renueva.
 - "No puedo leer X" cuando una herramienta falla (error de autenticación o 3 fallos seguidos) y "X vuelve a funcionar" al recuperarse.
-- Resumen semanal (lunes 09:00, Europe/Madrid) y "¿Me sobra el plan?" (día 1 de mes).
+- Resumen semanal (lunes desde las 09:00, Europe/Madrid) y "¿Me sobra el plan?" (día 1 de mes desde las 09:00); si un envío falla se reintenta en el siguiente cron del mismo día.
 
 Todo es de solo lectura: VigIA nunca consume cuota ni canjea créditos.
 
@@ -64,7 +64,7 @@ Cada uno se sube con `pnpm exec wrangler secret put <NOMBRE>` (pega el valor cua
 | `TELEGRAM_WEBHOOK_SECRET` | `openssl rand -hex 32` (solo letras, números, `_` y `-` son válidos para Telegram; hex lo cumple). |
 | `ACCESS_TEAM_DOMAIN` | Dominio de equipo de Cloudflare Access (paso 6), p. ej. `miequipo.cloudflareaccess.com`. |
 | `ACCESS_AUD` | "Application Audience (AUD) Tag" de la aplicación de Access (paso 6). |
-| `CONFIG_JSON` (opcional) | `{"disabled":["qoder"],"surplus":{"threshold":0.4,"periods":3}}`. `disabled` desactiva proveedores de nube; `surplus` ajusta "¿me sobra el plan?". |
+| `CONFIG_JSON` (opcional) | `{"disabled":["qoder"],"surplus":{"threshold":0.4,"periods":3}}`. `disabled` desactiva proveedores (no se leen en la nube y no aparecen en `/estado`, el resumen ni la página); `surplus` ajusta "¿me sobra el plan?". |
 
 ### 4. Despliegue
 
@@ -73,6 +73,8 @@ pnpm exec wrangler deploy
 ```
 
 Anota la URL `https://vigia.<tu-subdominio>.workers.dev`.
+
+Tras el primer despliegue no llega ninguna ráfaga de avisos: el cron se salta las herramientas de nube sin credencial guardada, y `/estado`, el resumen semanal y la página muestran cada herramienta activa como "sin datos" (las del portátil, "sin datos del portátil") hasta que subas su credencial (ver [Credenciales por herramienta](#credenciales-por-herramienta)) o el agente envíe su primera lectura.
 
 ### 5. Webhook de Telegram
 
