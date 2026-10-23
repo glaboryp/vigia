@@ -29,7 +29,7 @@ interface Config {
   surplus: Partial<SurplusConfig>
 }
 
-function parseConfig(raw: string | undefined): Config {
+export function parseConfig(raw: string | undefined): Config {
   const config: Config = { disabled: [], surplus: {} }
   if (!raw) return config
   try {
