@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { errorReading, type ProviderId, type ProviderReading } from 'core'
+import { cursorProvider, errorReading, type ProviderId, type ProviderReading } from 'core'
 import { readAntigravity } from './antigravity.js'
 import { loadConfig, type AgentConfig } from './config.js'
 import { IngestError, postIngest } from './ingest-client.js'
-import { defaultStatePath } from './state.js'
+import { readCursorToken } from './cursor-token.js'
+import { defaultStatePath, readState, writeState } from './state.js'
 
 export interface LocalReader {
   provider: ProviderId
@@ -14,6 +16,7 @@ export interface RunDeps {
   fetch?: typeof fetch
   sleep?: (ms: number) => Promise<void>
   statePath?: string
+  readCursorToken?: () => Promise<string | null>
   localReaders?: LocalReader[]
   log?: (message: string) => void
   logError?: (message: string) => void
@@ -39,13 +42,30 @@ export async function runOnce(cfg: AgentConfig, deps: RunDeps = {}): Promise<num
     }
   }
 
-  if (readings.length === 0) {
+  const credentials: { provider: ProviderId; value: string }[] = []
+  let cursorHash: string | undefined
+  if (!cfg.disabled.includes('cursor')) {
+    try {
+      const token = await (deps.readCursorToken ?? readCursorToken)()
+      if (token) {
+        const hash = createHash('sha256').update(token).digest('hex')
+        if (hash !== (await readState(statePath)).cursorTokenHash) {
+          credentials.push({ provider: 'cursor', value: cursorProvider.serializeCredential({ accessToken: token }) })
+          cursorHash = hash
+        }
+      }
+    } catch (err) {
+      logError(`No puedo leer el token de Cursor: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  if (readings.length === 0 && credentials.length === 0) {
     log('Nada que enviar: no hay lectores locales activos')
     return 0
   }
 
   try {
-    await postIngest(cfg, { readings }, deps.fetch, deps.sleep)
+    await postIngest(cfg, credentials.length > 0 ? { readings, credentials } : { readings }, deps.fetch, deps.sleep)
   } catch (err) {
     if (err instanceof IngestError && (err.network || err.status === 503)) {
       log(`No he podido enviar las lecturas (${err.message}); lo reintento en la próxima ejecución`)
@@ -53,6 +73,11 @@ export async function runOnce(cfg: AgentConfig, deps: RunDeps = {}): Promise<num
     }
     logError(`Error enviando las lecturas: ${err instanceof Error ? err.message : String(err)}`)
     return 1
+  }
+  if (cursorHash !== undefined) {
+    const hash = cursorHash
+    await writeState(statePath, (s) => ({ ...s, cursorTokenHash: hash }))
+    log('Token de Cursor sincronizado')
   }
   log(`Enviadas ${readings.length} lecturas`)
   return 0
