@@ -2,13 +2,14 @@ import {
   escapeHtml,
   formatMadrid,
   formatPercent,
+  LOCAL_PROVIDERS,
   PROVIDER_LABELS,
   sortByPriority,
   statusMessage,
   type ProviderId,
 } from 'core'
 import type { CronDeps } from './cron.js'
-import { runCloudProviders } from './cron.js'
+import { enabledProviders, runCloudProviders } from './cron.js'
 import { Repo, type StoredHealth, type StoredQuota } from './db.js'
 import type { Env } from './env.js'
 import { processReadings } from './pipeline.js'
@@ -63,7 +64,6 @@ const HELP = [
 
 const MAX_MUTE_DAYS = 365
 const HISTORY_SIZE = 6
-const LOCAL_PROVIDERS: ProviderId[] = ['antigravity', 'mimo', 'opencode']
 const PROVIDERS = Object.keys(PROVIDER_LABELS) as ProviderId[]
 
 const normalize = (s: string): string =>
@@ -173,7 +173,7 @@ async function refreshNow(env: Env, now: Date, deps: CronDeps): Promise<void> {
   }
   const repo = new Repo(env.DB, env.CREDENTIALS_KEY)
   const quotas = await repo.getCurrentQuotas()
-  const text = `${statusMessage(quotas, await repo.getHealth(), now)}\n${localAgeNote(quotas, now)}`
+  const text = `${statusMessage(quotas, await repo.getHealth(), now, enabledProviders(env))}\n${localAgeNote(quotas, now)}`
   await sendMessage(env, text, deps.fetch)
 }
 
@@ -215,7 +215,7 @@ export async function handleUpdate(
       }
       const quotas = (await repo.getCurrentQuotas()).filter((q) => provider === undefined || q.provider === provider)
       const health = (await repo.getHealth()).filter((h) => provider === undefined || h.provider === provider)
-      await reply(statusMessage(quotas, health, now))
+      await reply(statusMessage(quotas, health, now, provider === undefined ? enabledProviders(env) : [provider]))
       return
     }
     case 'prioridad':

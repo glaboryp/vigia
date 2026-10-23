@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK } from 'jose'
 import { beforeAll, beforeEach, expect, it } from 'vitest'
+import { PROVIDER_LABELS, type ProviderId } from 'core'
 import { Repo, type StoredQuota } from '../src/db.js'
 import { verifyAccess } from '../src/access.js'
 import { createWorker } from '../src/index.js'
@@ -83,7 +84,27 @@ it('serves the page with seeded data for a valid token', async () => {
   expect(html).toContain('75%')
 })
 
-const base = { quotas: [], health: [], closes: [], surplus: [], now: NOW }
+const ALL = Object.keys(PROVIDER_LABELS) as ProviderId[]
+const base = { quotas: [], health: [], closes: [], surplus: [], now: NOW, enabled: ALL }
+
+it('lists every enabled provider, marking those without data', () => {
+  const html = renderStatusPage({ ...base, quotas: [quota()], enabled: ['copilot', 'codex', 'mimo'] })
+  const cards = [...html.matchAll(/<section class="card"><h3>([^<]+)<\/h3>\n(?:<div class="badges">.*?<\/div>\n)?(.*?)<\/section>/gs)].map((m) => [m[1], m[2]])
+  expect(cards.map((c) => c[0])).toEqual(['GitHub Copilot', 'Codex', 'MiMo Code'])
+  expect(cards[1]![1]).toContain('Sin datos')
+  expect(cards[1]![1]).not.toContain('portátil')
+  expect(cards[2]![1]).toContain('Sin datos del portátil')
+  expect(html).not.toContain('Kilo Code')
+})
+
+it('serves every provider not disabled in CONFIG_JSON', async () => {
+  const cfg = { ...testEnv, CONFIG_JSON: JSON.stringify({ disabled: ['kilo'] }) }
+  const res = await createWorker({ jwks }).fetch(withJwt(await sign()), cfg, {} as ExecutionContext)
+  const html = await res.text()
+  expect(html).toContain('<h3>Freebuff</h3>')
+  expect(html).toContain('<h3>opencode</h3>')
+  expect(html).not.toContain('<h3>Kilo Code</h3>')
+})
 
 it('renders structure, sections and footer', () => {
   const html = renderStatusPage({ ...base, quotas: [quota()] })

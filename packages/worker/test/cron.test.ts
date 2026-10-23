@@ -64,9 +64,16 @@ describe('runCloudProviders', () => {
     ])
   })
 
-  it('reports auth when no credential is stored', async () => {
-    const [r] = await runCloudProviders(testEnv, MONDAY_0910, { providers: [fake('codex')] })
-    expect(r).toEqual(errorReading('codex', 'cloud', 'auth', 'No hay credencial configurada', MONDAY_0910))
+  it('skips a provider without a stored credential', async () => {
+    const p = fake('codex')
+    expect(await runCloudProviders(testEnv, MONDAY_0910, { providers: [p] })).toEqual([])
+    expect(p.reads).toBe(0)
+  })
+
+  it('does not alert about unconfigured providers on a first deploy', async () => {
+    for (let i = 0; i < 3; i++) await sched(new Date(TUESDAY.getTime() + i * 15 * 60_000), [fake('codex'), fake('copilot')])
+    expect(tg.texts).toEqual([])
+    expect(await repo.getHealth()).toEqual([])
   })
 
   it('reports auth when the stored credential is invalid', async () => {

@@ -3,6 +3,7 @@ import {
   formatMadrid,
   formatRelative,
   isStale,
+  LOCAL_PROVIDERS,
   PROVIDER_LABELS,
   shortError,
   type findSurplus,
@@ -17,6 +18,7 @@ export interface StatusPageData {
   closes: PeriodClose[]
   surplus: ReturnType<typeof findSurplus>
   now: Date
+  enabled: readonly ProviderId[]
 }
 
 const HISTORY_LIMIT = 12
@@ -85,18 +87,18 @@ function quotaHtml(q: StoredQuota, now: Date): string {
 }
 
 function currentSection(data: StatusPageData): string {
-  const cards = PROVIDERS.flatMap((id) => {
+  const cards = PROVIDERS.filter((id) => data.enabled.includes(id)).map((id) => {
     const quotas = data.quotas.filter((q) => q.provider === id)
     const health = data.health.find((h) => h.provider === id)
-    if (quotas.length === 0 && health === undefined) return []
-    const source = quotas[0]?.source ?? 'cloud'
+    const source = quotas[0]?.source ?? (LOCAL_PROVIDERS.includes(id) ? 'local' : 'cloud')
     const badges: string[] = []
     if (health?.lastError && health.brokenNotified) {
       badges.push(`<span class="badge bad">no puedo leerlo: ${escapeHtml(shortError(health.lastError.message))}</span>`)
     }
     if (health && isStale(health, source, data.now)) badges.push('<span class="badge warn">desactualizado</span>')
-    const body = quotas.length === 0 ? '<div class="muted">Sin datos todavía</div>' : quotas.map((q) => quotaHtml(q, data.now)).join('\n')
-    return [`<section class="card"><h3>${escapeHtml(PROVIDER_LABELS[id])}</h3>\n${badges.length > 0 ? `<div class="badges">${badges.join('')}</div>\n` : ''}${body}</section>`]
+    const noData = LOCAL_PROVIDERS.includes(id) ? 'Sin datos del portátil' : 'Sin datos'
+    const body = quotas.length === 0 ? `<div class="muted">${noData}</div>` : quotas.map((q) => quotaHtml(q, data.now)).join('\n')
+    return `<section class="card"><h3>${escapeHtml(PROVIDER_LABELS[id])}</h3>\n${badges.length > 0 ? `<div class="badges">${badges.join('')}</div>\n` : ''}${body}</section>`
   })
   return `<h2>Estado actual</h2>\n${cards.length > 0 ? cards.join('\n') : '<p class="muted">Sin datos todavía</p>'}`
 }

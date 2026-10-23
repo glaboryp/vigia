@@ -3,7 +3,7 @@ import { DEFAULT_SURPLUS_CONFIG, findSurplus } from 'core'
 import { Hono } from 'hono'
 import { verifyAccess } from './access.js'
 import { secretMatches } from './auth.js'
-import { parseConfig, runScheduled, type CronDeps } from './cron.js'
+import { enabledProviders, parseConfig, runScheduled, type CronDeps } from './cron.js'
 import { Repo } from './db.js'
 import type { Env } from './env.js'
 import { processReadings } from './pipeline.js'
@@ -23,7 +23,14 @@ export function createWorker(deps: CronDeps & { jwks?: JWTVerifyGetKey } = {}) {
     const repo = new Repo(c.env.DB, c.env.CREDENTIALS_KEY)
     const [quotas, health, closes] = await Promise.all([repo.getCurrentQuotas(), repo.getHealth(), repo.getPeriodCloses()])
     const config = { ...DEFAULT_SURPLUS_CONFIG, ...parseConfig(c.env.CONFIG_JSON).surplus }
-    const html = renderStatusPage({ quotas, health, closes, surplus: findSurplus(closes, config), now: new Date() })
+    const html = renderStatusPage({
+      quotas,
+      health,
+      closes,
+      surplus: findSurplus(closes, config),
+      now: new Date(),
+      enabled: enabledProviders(c.env),
+    })
     return c.html(html, 200, { 'Cache-Control': 'no-store', 'Content-Type': 'text/html; charset=utf-8' })
   })
 

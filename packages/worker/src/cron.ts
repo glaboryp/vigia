@@ -4,6 +4,7 @@ import {
   errorFromUnknown,
   errorReading,
   findSurplus,
+  PROVIDER_LABELS,
   statusMessage,
   surplusMessage,
   type Provider,
@@ -44,6 +45,11 @@ export function parseConfig(raw: string | undefined): Config {
   return config
 }
 
+export function enabledProviders(env: Env): ProviderId[] {
+  const { disabled } = parseConfig(env.CONFIG_JSON)
+  return (Object.keys(PROVIDER_LABELS) as ProviderId[]).filter((id) => !disabled.includes(id))
+}
+
 export async function runCloudProviders(env: Env, now: Date, deps: CronDeps = {}): Promise<ProviderReading[]> {
   const repo = new Repo(env.DB, env.CREDENTIALS_KEY)
   const { disabled } = parseConfig(env.CONFIG_JSON)
@@ -56,7 +62,8 @@ export async function runCloudProviders(env: Env, now: Date, deps: CronDeps = {}
     const token = await repo.acquireLease(lease, PROVIDER_LEASE_TTL_MS, deps.clock?.() ?? new Date())
     if (token === null) continue
     try {
-      readings.push(await readProvider(repo, provider, fetchFn, now))
+      const reading = await readProvider(repo, provider, fetchFn, now)
+      if (reading !== null) readings.push(reading)
     } finally {
       await repo.releaseLease(lease, token)
     }
@@ -69,10 +76,10 @@ async function readProvider(
   provider: Provider<any>,
   fetchFn: typeof fetch,
   now: Date,
-): Promise<ProviderReading> {
+): Promise<ProviderReading | null> {
   try {
     const raw = await repo.getCredential(provider.id)
-    if (raw === null) return errorReading(provider.id, provider.source, 'auth', 'No hay credencial configurada', now)
+    if (raw === null) return null
     let credential: unknown
     try {
       credential = provider.parseCredential(raw)
@@ -128,7 +135,7 @@ export async function runScheduled(env: Env, now: Date, deps: CronDeps = {}): Pr
   if (local.digestDue && local.monday) {
     const key = `weekly:${isoWeek(local.year, local.month, local.day)}`
     if (!(await repo.getSentKeys(key)).has(key)) {
-      const text = statusMessage(await repo.getCurrentQuotas(), await repo.getHealth(), now)
+      const text = statusMessage(await repo.getCurrentQuotas(), await repo.getHealth(), now, enabledProviders(env))
       if (await sendMessage(env, text, deps.fetch)) await repo.markSent(key)
     }
   }

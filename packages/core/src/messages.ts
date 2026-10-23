@@ -17,7 +17,7 @@ export const FIX_HINTS: Record<ProviderId, string> = {
   freebuff: 'Genera un token nuevo y súbelo (ver README)',
 }
 
-const LOCAL_BY_DEFAULT: ProviderId[] = ['antigravity', 'mimo', 'opencode']
+export const LOCAL_PROVIDERS: ProviderId[] = ['antigravity', 'mimo', 'opencode']
 const OLD_DATA_MS = 6 * 3_600_000
 const PROVIDER_ORDER = Object.keys(PROVIDER_LABELS) as ProviderId[]
 
@@ -91,17 +91,32 @@ export function recoveredMessage(provider: ProviderId): string {
   return `✅ <b>${escapeHtml(PROVIDER_LABELS[provider])}</b> vuelve a funcionar`
 }
 
-export function statusMessage(quotas: TrackedQuota[], health: ProviderHealth[], now: Date): string {
+export function noDataText(provider: ProviderId): string {
+  return LOCAL_PROVIDERS.includes(provider) ? 'sin datos del portátil' : 'sin datos'
+}
+
+export function statusMessage(
+  quotas: TrackedQuota[],
+  health: ProviderHealth[],
+  now: Date,
+  enabled: readonly ProviderId[],
+): string {
   const healthBy = new Map(health.map((h) => [h.provider, h]))
   const lines: string[] = []
   for (const provider of PROVIDER_ORDER) {
+    if (!enabled.includes(provider)) continue
     const own = quotas.filter((q) => q.provider === provider)
     const h = healthBy.get(provider)
+    const label = `<b>${escapeHtml(PROVIDER_LABELS[provider])}</b>`
     if (h?.lastError && h.brokenNotified) {
-      lines.push(`• <b>${escapeHtml(PROVIDER_LABELS[provider])}</b> — ⚠️ no puedo leerlo: ${escapeHtml(shortError(h.lastError.message))}`)
+      lines.push(`• ${label} — ⚠️ no puedo leerlo: ${escapeHtml(shortError(h.lastError.message))}`)
       continue
     }
-    const source: Source = LOCAL_BY_DEFAULT.includes(provider) ? 'local' : 'cloud'
+    if (own.length === 0) {
+      lines.push(`• ${label} — ${noDataText(provider)}`)
+      continue
+    }
+    const source: Source = LOCAL_PROVIDERS.includes(provider) ? 'local' : 'cloud'
     const stale = h !== undefined && isStale(h, source, now) ? ' (desactualizado)' : ''
     for (const q of own) lines.push(`${quotaLine(q, own.length, now)}${stale}`)
   }

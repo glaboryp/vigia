@@ -116,7 +116,7 @@ describe('brokenMessage and recoveredMessage', () => {
     const h: ProviderHealth = { provider: 'cursor', consecutiveFailures: 3, lastError: { kind: 'parse', message: long }, brokenNotified: true }
     expect(brokenMessage(h)).toContain(`Último error: ${'x'.repeat(200)}…\n`)
     expect(brokenMessage(h)).not.toContain('x'.repeat(201))
-    const status = statusMessage([], [h], now)
+    const status = statusMessage([], [h], now, ['cursor'])
     expect(status).toContain(`no puedo leerlo: ${'x'.repeat(200)}…`)
     expect(status).not.toContain('x'.repeat(201))
   })
@@ -145,6 +145,7 @@ describe('statusMessage', () => {
       ],
       health,
       now,
+      ['copilot', 'codex', 'cursor', 'antigravity'],
     )
     expect(msg).toMatchInlineSnapshot(`
       "📊 <b>Estado de tus cuotas</b>
@@ -155,8 +156,32 @@ describe('statusMessage', () => {
     `)
   })
 
-  it('handles no data', () => {
-    expect(statusMessage([], [], now)).toMatchInlineSnapshot(`
+  it('lists every enabled provider in label order, marking those without data', () => {
+    const health: ProviderHealth[] = [{ provider: 'grok', consecutiveFailures: 1, brokenNotified: false, lastError: { kind: 'network', message: 'x' } }]
+    const msg = statusMessage(
+      [tracked({ provider: 'copilot', quotaId: 'premium', name: 'Premium', window: 'monthly', remainingFraction: 0.5 })],
+      health,
+      now,
+      ['opencode', 'grok', 'copilot', 'kilo', 'antigravity'],
+    )
+    expect(msg).toMatchInlineSnapshot(`
+      "📊 <b>Estado de tus cuotas</b>
+      • <b>GitHub Copilot</b> — 50 % · se renueva lun 26 oct, 15:13 (en 20 h)
+      • <b>Kilo Code</b> — sin datos
+      • <b>Grok</b> — sin datos
+      • <b>Antigravity</b> — sin datos del portátil
+      • <b>opencode</b> — sin datos del portátil"
+    `)
+  })
+
+  it('omits providers that are not enabled', () => {
+    const msg = statusMessage([tracked({ provider: 'copilot' })], [], now, ['cursor'])
+    expect(msg).not.toContain('Copilot')
+    expect(msg).toContain('<b>Cursor</b> — sin datos')
+  })
+
+  it('handles no enabled providers', () => {
+    expect(statusMessage([], [], now, [])).toMatchInlineSnapshot(`
       "📊 <b>Estado de tus cuotas</b>
       Todavía no hay datos."
     `)

@@ -107,7 +107,29 @@ describe('POST /telegram', () => {
     await send('/estado github copilot')
     await send('/estado Mimo Code')
     expect(tg.texts[0]).toContain('GitHub Copilot')
-    expect(tg.texts[1]).toContain('Todavía no hay datos')
+    expect(tg.texts[1]).toContain('<b>MiMo Code</b> — sin datos del portátil')
+    expect(tg.texts[1]).not.toContain('Copilot')
+  })
+
+  it('/estado lists enabled providers without data and hides disabled ones', async () => {
+    await seedQuota({ provider: 'copilot' })
+    const cfg = { ...testEnv, CONFIG_JSON: JSON.stringify({ disabled: ['kilo'] }) }
+    const worker = createWorker({ fetch: tg.fetch, sleep: async () => {}, providers: [] })
+    const body = { update_id: 1, message: { chat: { id: 42 }, text: '/estado' } }
+    await worker.fetch(
+      new Request('https://vigia.test/telegram', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'hook-secret' },
+        body: JSON.stringify(body),
+      }),
+      cfg,
+      ctx(),
+    )
+    await Promise.all(pending)
+    expect(tg.texts[0]).toContain('GitHub Copilot')
+    expect(tg.texts[0]).toContain('<b>Codex</b> — sin datos')
+    expect(tg.texts[0]).toContain('<b>opencode</b> — sin datos del portátil')
+    expect(tg.texts[0]).not.toContain('Kilo')
   })
 
   it('reports unknown tools with options', async () => {
