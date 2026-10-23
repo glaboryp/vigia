@@ -94,7 +94,6 @@ const madridParts = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
   weekday: 'short',
   hour: '2-digit',
-  minute: '2-digit',
   hourCycle: 'h23',
 })
 
@@ -105,7 +104,7 @@ function madrid(now: Date) {
     month: Number(p.month),
     day: Number(p.day),
     monday: p.weekday === 'Mon',
-    inDigestWindow: p.hour === '09' && Number(p.minute) < 30,
+    digestDue: Number(p.hour) >= 9,
   }
 }
 
@@ -126,7 +125,7 @@ export async function runScheduled(env: Env, now: Date, deps: CronDeps = {}): Pr
   const repo = new Repo(env.DB, env.CREDENTIALS_KEY)
   const local = madrid(now)
 
-  if (local.inDigestWindow && local.monday) {
+  if (local.digestDue && local.monday) {
     const key = `weekly:${isoWeek(local.year, local.month, local.day)}`
     if (!(await repo.getSentKeys(key)).has(key)) {
       const text = statusMessage(await repo.getCurrentQuotas(), await repo.getHealth(), now)
@@ -134,7 +133,7 @@ export async function runScheduled(env: Env, now: Date, deps: CronDeps = {}): Pr
     }
   }
 
-  if (local.inDigestWindow && local.day === 1) {
+  if (local.digestDue && local.day === 1) {
     const key = `surplus:${local.year}-${String(local.month).padStart(2, '0')}`
     if (!(await repo.getSentKeys(key)).has(key)) {
       const config = { ...DEFAULT_SURPLUS_CONFIG, ...parseConfig(env.CONFIG_JSON).surplus }

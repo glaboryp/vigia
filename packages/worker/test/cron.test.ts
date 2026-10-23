@@ -134,10 +134,41 @@ describe('runScheduled', () => {
     expect(await repo.getSentKeys('weekly:')).toEqual(new Set(['weekly:2026-W44']))
   })
 
-  it('does not send the digest outside the window', async () => {
-    await sched(MONDAY_1000)
+  it('sends the weekly digest later on Monday when no earlier run sent it', async () => {
+    await sched(new Date('2026-10-26T13:00:00.000Z'))
+    expect(tg.texts.filter((t) => t.includes('Estado de tus cuotas'))).toHaveLength(1)
+  })
+
+  it('does not send the digest before 09:00 Madrid on Monday nor on Tuesday', async () => {
+    await sched(new Date('2026-10-26T07:59:00.000Z'))
     await sched(TUESDAY)
     expect(tg.texts).toEqual([])
+  })
+
+  it('sends the weekly digest once after a failed attempt at 09:00', async () => {
+    tg.status = 500
+    await sched(new Date('2026-10-26T08:00:00.000Z'))
+    tg.status = 200
+    await sched(new Date('2026-10-26T08:30:00.000Z'))
+    await sched(MONDAY_1000)
+    expect(tg.texts.filter((t) => t.includes('Estado de tus cuotas'))).toHaveLength(1)
+  })
+
+  it('sends the weekly digest on a summer Monday at 09:10 CEST', async () => {
+    await sched(new Date('2026-07-06T07:10:00.000Z'))
+    expect(await repo.getSentKeys('weekly:')).toEqual(new Set(['weekly:2026-W28']))
+  })
+
+  it('does not send the weekly digest at 08:10 CEST', async () => {
+    await sched(new Date('2026-07-06T06:10:00.000Z'))
+    expect(tg.texts).toEqual([])
+  })
+
+  it('checks the surplus later on day 1 and not before 09:00', async () => {
+    await sched(new Date('2026-11-01T07:59:00.000Z'))
+    expect(await repo.getSentKeys('surplus:')).toEqual(new Set())
+    await sched(new Date('2026-11-01T16:00:00.000Z'))
+    expect(await repo.getSentKeys('surplus:')).toEqual(new Set(['surplus:2026-11']))
   })
 
   it('retries the digest when sending fails', async () => {
