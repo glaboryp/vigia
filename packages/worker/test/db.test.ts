@@ -52,18 +52,42 @@ describe('Repo', () => {
     expect(await repo.getSentKeys('a:')).toEqual(new Set(['a:1']))
   })
 
-  it('acquireLease is exclusive until expiry', async () => {
+  it('acquireLease is exclusive until expiry and hands out holder tokens', async () => {
     const t0 = new Date('2026-10-23T10:00:00Z')
-    expect(await repo.acquireLease('eval', 60_000, t0)).toBe(true)
-    expect(await repo.acquireLease('eval', 60_000, new Date(t0.getTime() + 1000))).toBe(false)
-    expect(await repo.acquireLease('eval', 60_000, new Date(t0.getTime() + 61_000))).toBe(true)
+    const first = await repo.acquireLease('eval', 60_000, t0)
+    expect(first).toEqual(expect.any(String))
+    expect(await repo.acquireLease('eval', 60_000, new Date(t0.getTime() + 1000))).toBeNull()
+    const second = await repo.acquireLease('eval', 60_000, new Date(t0.getTime() + 61_000))
+    expect(second).toEqual(expect.any(String))
+    expect(second).not.toBe(first)
   })
 
-  it('releaseLease frees the lease', async () => {
+  it('releaseLease frees the lease for its holder only', async () => {
     const t0 = new Date('2026-10-23T10:00:00Z')
-    await repo.acquireLease('eval', 60_000, t0)
-    await repo.releaseLease('eval')
-    expect(await repo.acquireLease('eval', 60_000, t0)).toBe(true)
+    const old = (await repo.acquireLease('eval', 60_000, t0))!
+    const fresh = (await repo.acquireLease('eval', 60_000, new Date(t0.getTime() + 61_000)))!
+    await repo.releaseLease('eval', old)
+    expect(await repo.acquireLease('eval', 60_000, new Date(t0.getTime() + 62_000))).toBeNull()
+    await repo.releaseLease('eval', fresh)
+    expect(await repo.acquireLease('eval', 60_000, new Date(t0.getTime() + 62_000))).not.toBeNull()
+  })
+
+  it('normalizes non-UTC timestamps so purge and ordering are consistent', async () => {
+    const r = (readAt: string): ProviderReading => ({ provider: 'codex', ok: true, quotas: [], readAt, source: 'cloud' })
+    await repo.insertSnapshot(r('2026-10-23T10:00:00+02:00'))
+    await repo.insertSnapshot(r('2026-10-23T09:00:00Z'))
+    await repo.upsertCurrentQuota({ ...quota, readAt: '2026-10-23T10:00:00+02:00' })
+    expect((await repo.getCurrentQuotas())[0]?.readAt).toBe('2026-10-23T08:00:00.000Z')
+    await repo.purgeSnapshotsBefore('2026-10-23T10:30:00+02:00')
+    const rows = await env.DB.prepare('SELECT read_at FROM snapshots').all<{ read_at: string }>()
+    expect(rows.results.map((x) => x.read_at)).toEqual(['2026-10-23T09:00:00.000Z'])
+  })
+
+  it('binds credentials to their provider', async () => {
+    const encRepo = new Repo(env.DB, key)
+    await encRepo.putCredential('cursor', 'tok')
+    await env.DB.exec("UPDATE credentials SET provider = 'grok' WHERE provider = 'cursor'")
+    await expect(encRepo.getCredential('grok')).rejects.toThrow()
   })
 
   it('insertPeriodClose is idempotent and filterable', async () => {

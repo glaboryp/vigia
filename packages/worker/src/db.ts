@@ -38,7 +38,7 @@ interface CloseRow {
 interface HealthRow {
   provider: ProviderId
   consecutive_failures: number
-  last_error_kind: ErrorKind
+  last_error_kind: ErrorKind | null
   last_error_message: string | null
   broken_notified: number
   last_ok_at: string | null
@@ -77,6 +77,8 @@ const toHealth = (r: HealthRow): ProviderHealth => ({
   ...(r.muted_until !== null && { mutedUntil: r.muted_until }),
 })
 
+const iso = (s: string): string => new Date(s).toISOString()
+
 export class Repo {
   constructor(
     private readonly db: D1Database,
@@ -96,7 +98,7 @@ export class Repo {
         r.ok ? null : r.error.kind,
         r.ok ? null : r.error.message,
         r.ok ? JSON.stringify(r.quotas) : null,
-        r.readAt,
+        iso(r.readAt),
       )
       .run()
   }
@@ -136,9 +138,9 @@ export class Repo {
         q.remaining ?? null,
         q.total ?? null,
         q.unit ?? null,
-        q.resetsAt,
-        q.periodResetAt,
-        q.readAt,
+        iso(q.resetsAt),
+        iso(q.periodResetAt),
+        iso(q.readAt),
         q.source,
       )
       .run()
@@ -151,7 +153,7 @@ export class Repo {
          VALUES (?, ?, ?, ?, ?)
          ON CONFLICT (provider, quota_id, period_reset_at) DO NOTHING`,
       )
-      .bind(c.provider, c.quotaId, c.window, c.periodResetAt, c.usedFraction)
+      .bind(c.provider, c.quotaId, c.window, iso(c.periodResetAt), c.usedFraction)
       .run()
   }
 
@@ -191,8 +193,8 @@ export class Repo {
         h.lastError?.kind ?? null,
         h.lastError?.message ?? null,
         h.brokenNotified ? 1 : 0,
-        h.lastOkAt ?? null,
-        h.mutedUntil ?? null,
+        h.lastOkAt === undefined ? null : iso(h.lastOkAt),
+        h.mutedUntil === undefined ? null : iso(h.mutedUntil),
       )
       .run()
   }
@@ -216,11 +218,11 @@ export class Repo {
 
   async getCredential(p: ProviderId): Promise<string | null> {
     const row = await this.db.prepare('SELECT value FROM credentials WHERE provider = ?').bind(p).first<{ value: string }>()
-    return row ? decrypt(this.requireKey(), row.value) : null
+    return row ? decrypt(this.requireKey(), row.value, p) : null
   }
 
   async putCredential(p: ProviderId, plaintext: string): Promise<void> {
-    const value = await encrypt(this.requireKey(), plaintext)
+    const value = await encrypt(this.requireKey(), plaintext, p)
     await this.db
       .prepare(
         `INSERT INTO credentials (provider, value) VALUES (?, ?)
@@ -232,25 +234,26 @@ export class Repo {
       .run()
   }
 
-  async acquireLease(name: string, ttlMs: number, now: Date): Promise<boolean> {
+  async acquireLease(name: string, ttlMs: number, now: Date): Promise<string | null> {
     const nowMs = now.getTime()
+    const token = crypto.randomUUID()
     const res = await this.db
       .prepare(
-        `INSERT INTO leases (name, expires_at) VALUES (?, ?)
-         ON CONFLICT (name) DO UPDATE SET expires_at = excluded.expires_at
+        `INSERT INTO leases (name, holder, expires_at) VALUES (?, ?, ?)
+         ON CONFLICT (name) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at
          WHERE leases.expires_at < ?`,
       )
-      .bind(name, nowMs + ttlMs, nowMs)
+      .bind(name, token, nowMs + ttlMs, nowMs)
       .run()
-    return res.meta.changes > 0
+    return res.meta.changes > 0 ? token : null
   }
 
-  async releaseLease(name: string): Promise<void> {
-    await this.db.prepare('DELETE FROM leases WHERE name = ?').bind(name).run()
+  async releaseLease(name: string, token: string): Promise<void> {
+    await this.db.prepare('DELETE FROM leases WHERE name = ? AND holder = ?').bind(name, token).run()
   }
 
-  async purgeSnapshotsBefore(iso: string): Promise<void> {
-    await this.db.prepare('DELETE FROM snapshots WHERE read_at < ?').bind(iso).run()
+  async purgeSnapshotsBefore(before: string): Promise<void> {
+    await this.db.prepare('DELETE FROM snapshots WHERE read_at < ?').bind(iso(before)).run()
   }
 
   private requireKey(): string {
