@@ -1,0 +1,14 @@
+{
+  "_synthetic": true,
+  "plan_type": "pro",
+  "rate_limit": {
+    "allowed": false,
+    "limit_reached": true,
+    "primary_window": {
+      "used_percent": 100,
+      "limit_window_seconds": 604800,
+      "reset_after_seconds": 296921
+    },
+    "secondary_window": null
+  }
+}

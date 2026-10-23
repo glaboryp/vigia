@@ -39,3 +39,38 @@ export function toIso(value: unknown): string | undefined {
 export function clampFraction(value: number): number {
   return Math.min(1, Math.max(0, value))
 }
+
+const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+
+export function base64UrlDecode(input: string): Uint8Array {
+  const clean = input.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const out: number[] = []
+  let buffer = 0
+  let bits = 0
+  for (const ch of clean) {
+    const value = B64URL.indexOf(ch)
+    if (value < 0) throw new Error('Invalid base64url input')
+    buffer = (buffer << 6) | value
+    bits += 6
+    if (bits >= 8) {
+      bits -= 8
+      out.push((buffer >> bits) & 0xff)
+    }
+  }
+  return Uint8Array.from(out)
+}
+
+export function decodeJwtPayload(token: string | undefined): JsonRecord | undefined {
+  const part = token?.split('.')[1]
+  if (!part) return undefined
+  try {
+    const payload: unknown = JSON.parse(new TextDecoder().decode(base64UrlDecode(part)))
+    return isRecord(payload) ? payload : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+}
