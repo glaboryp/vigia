@@ -51,3 +51,17 @@ describe('loadConfig', () => {
     expect((await loadConfig(path)).disabled).toEqual(['cursor'])
   })
 })
+
+describe('loadConfig placeholders', () => {
+  it('explains how to replace the workerUrl placeholder', async () => {
+    await writeFile(path, JSON.stringify({ workerUrl: 'https://vigia.<tu-subdominio>.workers.dev', ingestToken: 't' }), { mode: 0o600 })
+    await expect(loadConfig(path)).rejects.toThrow(
+      'Edita ~/.config/vigia/agent.json: sustituye <tu-subdominio> por el subdominio real de tu Worker (lo ves en el panel de Cloudflare → Workers)',
+    )
+  })
+
+  it('explains how to replace the ingestToken placeholder', async () => {
+    await writeFile(path, JSON.stringify({ workerUrl: 'https://w.example', ingestToken: '<INGEST_TOKEN>' }), { mode: 0o600 })
+    await expect(loadConfig(path)).rejects.toThrow(/Edita ~\/\.config\/vigia\/agent\.json: sustituye <INGEST_TOKEN>/)
+  })
+})
