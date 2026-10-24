@@ -87,3 +87,10 @@ describe('main', () => {
     expect(out.join('')).toContain('401')
   })
 })
+
+describe('validateCredential', () => {
+  it('returns the provider id and serialized value', async () => {
+    const { validateCredential } = await import('../src/push-credential.ts')
+    expect(validateCredential('qoder', ' pat ')).toEqual({ provider: 'qoder', value: '{"pat":"pat"}' })
+  })
+})
