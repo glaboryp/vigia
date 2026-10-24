@@ -33,6 +33,7 @@ function deps(over: Record<string, unknown> = {}) {
       statePath,
       readCursorToken: async () => null,
       localReaders: [{ provider: 'antigravity' as const, read: async () => reading('antigravity') }],
+      localHttpProviders: [],
       log: (m: string) => logs.push(m),
       logError: (m: string) => errors.push(m),
       sleep: async () => {},
