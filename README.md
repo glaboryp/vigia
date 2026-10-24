@@ -104,8 +104,8 @@ La página `/` exige un JWT de Access (sin él devuelve 403), pero `/ingest`, `/
 Las herramientas de nube se leen desde el Worker. La forma principal es que el agente obtenga la credencial y la suba él mismo, sin copiar tokens a mano:
 
 ```bash
-pnpm --filter agent login <herramienta>
-pnpm --filter agent login all
+pnpm --filter agent run login <herramienta>
+pnpm --filter agent run login all
 ```
 
 (`herramienta` ∈ `copilot`, `codex`, `grok`, `freebuff`, `kilo`, `qoder`; `all` las recorre en ese orden, sigue tras un fallo y muestra un resumen). Valida el formato en local, nunca imprime la credencial y solo escribe en disco los `auth.json` que gestionan Codex y Grok.
@@ -160,7 +160,7 @@ shred -u /tmp/vigia-cred
 
 ### Codex (manual)
 
-`pnpm --filter agent login codex` crea `~/.vigia/codex` y hace todo lo siguiente. A mano, usa un login **separado** del del portátil, para que el refresco del token rotado en la nube no invalide tu sesión:
+`pnpm --filter agent run login codex` crea `~/.vigia/codex` y hace todo lo siguiente. A mano, usa un login **separado** del del portátil, para que el refresco del token rotado en la nube no invalide tu sesión:
 
 ```bash
 mkdir -p -m 700 ~/.vigia/codex
@@ -172,7 +172,7 @@ Después puedes borrar `~/.vigia/codex`. El Worker guarda en D1 el refresh token
 
 ### Grok (manual)
 
-`pnpm --filter agent login grok` crea `~/.vigia/grok` y hace todo lo siguiente. A mano, login separado del `~/.grok` del portátil:
+`pnpm --filter agent run login grok` crea `~/.vigia/grok` y hace todo lo siguiente. A mano, login separado del `~/.grok` del portátil:
 
 ```bash
 mkdir -p -m 700 ~/.vigia/grok
