@@ -1,0 +1,18 @@
+{
+  "userId": "REDACTED",
+  "userType": "personal_standard",
+  "usageType": "credits",
+  "totalUsagePercentage": 0,
+  "isQuotaExceeded": true,
+  "expiresAt": 253402214400000,
+  "upgradeUrl": "https://qoder.com/pricing?client=qoder",
+  "outerProviders": [],
+  "userQuota": {
+    "total": 0,
+    "used": 0,
+    "remaining": 0,
+    "percentage": 0,
+    "unit": "credits"
+  },
+  "isPlanQuotaProrated": false
+}

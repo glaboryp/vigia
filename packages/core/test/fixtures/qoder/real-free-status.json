@@ -1,0 +1,18 @@
+{
+  "id": "REDACTED",
+  "name": "REDACTED",
+  "userType": "personal_standard",
+  "quota": 0,
+  "whitelistStatus": "PASS",
+  "avatarUrl": "REDACTED",
+  "email": "REDACTED",
+  "isQuotaExceeded": true,
+  "plan": "PLAN_TIER_FREE",
+  "isSubAccount": false,
+  "userTag": "Free",
+  "isPrivacyPolicyModifiable": false,
+  "nextResetAt": 1795363291403,
+  "featureSwitches": {
+    "allow_byok": 2
+  }
+}

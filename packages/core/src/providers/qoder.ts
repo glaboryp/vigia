@@ -46,6 +46,15 @@ function parseStatus(body: unknown): Parsed {
     const remaining = base.remaining + (shared?.remaining ?? 0)
     return { used, total, remaining, resetsAt }
   }
+  const userQuota = pick(r, 'userQuota', 'user_quota')
+  if (isRecord(userQuota)) {
+    const uqTotal = pickNumber(userQuota, 'total')
+    const uqUsed = pickNumber(userQuota, 'used')
+    if (uqTotal !== undefined && uqUsed !== undefined) {
+      const uqRemaining = pickNumber(userQuota, 'remaining') ?? Math.max(0, uqTotal - uqUsed)
+      return { used: uqUsed, total: uqTotal, remaining: uqRemaining, resetsAt }
+    }
+  }
   const total = pickNumber(r, 'totalCredits', 'total_credits', 'total', 'limit')
   const used = pickNumber(r, 'usedCredits', 'used_credits', 'used')
   if (total === undefined || used === undefined) return { resetsAt }
@@ -102,7 +111,8 @@ async function readQuotas(ctx: { fetch: typeof fetch }, pat: string): Promise<Qu
     }
   }
 
-  if (parsed.total === undefined || parsed.used === undefined || parsed.remaining === undefined || parsed.total <= 0) {
+  if (parsed.total === 0) throw new ProviderError('unavailable', 'Tu plan de Qoder no incluye créditos')
+  if (parsed.total === undefined || parsed.used === undefined || parsed.remaining === undefined || parsed.total < 0) {
     throw new ProviderError('unavailable', 'Qoder no devolvió cuota')
   }
   if (parsed.resetsAt === undefined) throw new ProviderError('parse', 'Sin fecha de renovación')
