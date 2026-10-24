@@ -9,7 +9,7 @@ export const FIX_HINTS: Record<ProviderId, string> = {
   mimo: 'Inicia sesión en platform.xiaomimimo.com con Brave',
   opencode: 'Inicia sesión en opencode.ai con Brave',
   antigravity: 'Ejecuta `agy` y vuelve a iniciar sesión',
-  codex: 'Repite el login de la nube (ver README)',
+  codex: 'Repite el login: pnpm --filter agent run login codex',
   grok: 'Repite el login de la nube (ver README)',
   copilot: 'Genera un token nuevo y súbelo (ver README)',
   kilo: 'Genera un token nuevo y súbelo (ver README)',
@@ -17,7 +17,7 @@ export const FIX_HINTS: Record<ProviderId, string> = {
   freebuff: 'Genera un token nuevo y súbelo (ver README)',
 }
 
-export const LOCAL_PROVIDERS: ProviderId[] = ['antigravity', 'mimo', 'opencode']
+export const LOCAL_PROVIDERS: ProviderId[] = ['codex', 'antigravity', 'mimo', 'opencode']
 const OLD_DATA_MS = 6 * 3_600_000
 const PROVIDER_ORDER = Object.keys(PROVIDER_LABELS) as ProviderId[]
 

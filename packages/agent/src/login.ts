@@ -3,7 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { PROVIDER_LABELS, type ProviderId } from 'core'
+import { PROVIDER_LABELS, codexProvider, type ProviderId } from 'core'
 import { runProcess, type Runner } from './antigravity.js'
 import { loadConfig, type AgentConfig } from './config.js'
 import { IngestError, postIngest } from './ingest-client.js'
@@ -130,6 +130,11 @@ async function loginViaCli(id: 'codex' | 'grok', r: Resolved): Promise<void> {
   await runCli(id, args, { ...r.env, [homeVar]: dir }, r)
   const raw = await readAuthFile(authPath)
   if (raw === null) throw new Error(`${id} no ha creado ${authPath}`)
+  if (id === 'codex') {
+    codexProvider.parseCredential(raw)
+    r.log('✅ Codex queda configurado en el portátil (el agente lo lee desde ahí).')
+    return
+  }
   await upload(id, raw, r)
 }
 

@@ -3,7 +3,7 @@ import type { Quota, Window } from '../types.js'
 import { okReading, type Provider } from './contract.js'
 import { clampFraction, isRecord, pick, pickNumber, toIso, type JsonRecord } from './util.js'
 
-const SESSION_URL = 'https://codebuff.com/api/v1/freebuff/session'
+const SESSION_URL = 'https://www.codebuff.com/api/v1/freebuff/session'
 
 function windowQuota(
   quotaId: string,

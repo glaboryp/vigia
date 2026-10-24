@@ -115,7 +115,7 @@ pnpm --filter agent run login all
 | Herramienta | Qué hace `login` |
 |---|---|
 | Copilot | Flujo de dispositivo de GitHub: te muestra una URL y un código; lo introduces en el navegador. |
-| Codex | Ejecuta `codex login --device-auth` con un `CODEX_HOME` propio (`~/.vigia/codex`, que crea él) y sube su `auth.json`. |
+| Codex | Ejecuta `codex login --device-auth` con un `CODEX_HOME` propio (`~/.vigia/codex`, que crea él). No sube nada: Codex se lee desde el portátil. |
 | Grok | Ejecuta `grok login` con un `GROK_HOME` propio (`~/.vigia/grok`, que crea él) y sube su `auth.json`. Si ya existe un `auth.json` válido, no vuelve a iniciar sesión. |
 | Freebuff | Lee el token del llavero de GNOME (`secret-tool`, paquete `libsecret-tools`); inicia sesión antes con `freebuff`. |
 | Kilo | Te pide la API key de https://app.kilo.ai/profile (la entrada no se muestra). |
@@ -158,17 +158,16 @@ pnpm --filter agent push-credential copilot /tmp/vigia-cred
 shred -u /tmp/vigia-cred
 ```
 
-### Codex (manual)
+### Codex (se lee desde el portátil)
 
-`pnpm --filter agent run login codex` crea `~/.vigia/codex` y hace todo lo siguiente. A mano, usa un login **separado** del del portátil, para que el refresco del token rotado en la nube no invalide tu sesión:
+ChatGPT rechaza (HTTP 403) las peticiones que salen de los servidores de Cloudflare, así que Codex lo lee el agente del portátil, como Antigravity. Usa un login **separado** del tuyo (`~/.vigia/codex`) para que la renovación del token no invalide tu sesión de Codex:
 
 ```bash
-mkdir -p -m 700 ~/.vigia/codex
-CODEX_HOME=~/.vigia/codex codex login --device-auth
-pnpm --filter agent push-credential codex ~/.vigia/codex/auth.json
+pnpm --filter agent run login codex
+# equivale a: mkdir -p -m 700 ~/.vigia/codex && CODEX_HOME=~/.vigia/codex codex login --device-auth
 ```
 
-Después puedes borrar `~/.vigia/codex`. El Worker guarda en D1 el refresh token rotado en cada lectura.
+No borres `~/.vigia/codex`: el agente lee de ahí y guarda en ese fichero el token renovado.
 
 ### Grok (manual)
 
@@ -254,7 +253,7 @@ El agente lee las cookies de Brave (perfil `Default`) y hace las peticiones desd
 | MiMo | Inicia sesión en platform.xiaomimimo.com con Brave. |
 | opencode | Inicia sesión en opencode.ai con Brave. |
 | Antigravity | Ejecuta `agy` y vuelve a iniciar sesión (ver también el "latch" más abajo). |
-| Codex | Repite el login de la nube (`CODEX_HOME=~/.vigia/codex codex login --device-auth` y `push-credential codex ...`). |
+| Codex | Repite el login: `pnpm --filter agent run login codex`. |
 | Grok | Repite el login de la nube (`GROK_HOME=~/.vigia/grok grok login` y `push-credential grok ...`). |
 | Copilot, Kilo, Qoder, Freebuff | Genera un token nuevo y súbelo con `push-credential`. |
 

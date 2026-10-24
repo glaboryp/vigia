@@ -21,10 +21,12 @@ describe('pushCredential', () => {
     expect(bodyOf(f).credentials).toEqual([{ provider: 'qoder', value: '{"pat":"pat-123"}' }])
   })
 
-  it('accepts a Codex auth.json', async () => {
+  it('refuses Codex, which is read from the laptop', async () => {
     const f = ok()
-    await pushCredential(cfg, 'codex', JSON.stringify({ tokens: { access_token: 'a', refresh_token: 'r' } }), f)
-    expect(JSON.parse(bodyOf(f).credentials[0].value)).toMatchObject({ refreshToken: 'r' })
+    await expect(
+      pushCredential(cfg, 'codex', JSON.stringify({ tokens: { access_token: 'a', refresh_token: 'r' } }), f),
+    ).rejects.toThrow(/no se sube/)
+    expect(f).not.toHaveBeenCalled()
   })
 
   it('rejects unknown and local providers without posting', async () => {

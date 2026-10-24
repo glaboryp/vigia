@@ -7,7 +7,7 @@ import { IngestError, postIngest } from './ingest-client.js'
 export function validateCredential(id: string, raw: string): { provider: ProviderId; value: string } {
   const provider = CLOUD_PROVIDERS.find((p) => p.id === id)
   if (!provider) {
-    if ([...LOCAL_HTTP_PROVIDERS, { id: 'antigravity' }].some((p) => p.id === id)) {
+    if ([...LOCAL_HTTP_PROVIDERS, { id: 'antigravity' }, { id: 'codex' }].some((p) => p.id === id)) {
       throw new Error(`${PROVIDER_LABELS[id as keyof typeof PROVIDER_LABELS]} se lee en local: su credencial no se sube`)
     }
     throw new Error(`Proveedor desconocido: ${id}. Disponibles: ${CLOUD_PROVIDERS.map((p) => p.id).join(', ')}`)

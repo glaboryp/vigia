@@ -11,6 +11,7 @@ import {
   type ProviderReading,
 } from 'core'
 import { readAntigravity, type Runner } from './antigravity.js'
+import { readCodexLocal } from './codex-local.js'
 import { BRAVE_COOKIE_HOSTS, getBraveCookieHeader, keyringPassword } from './brave-cookies.js'
 import { loadConfig, type AgentConfig } from './config.js'
 import { IngestError, postIngest } from './ingest-client.js'
@@ -42,6 +43,7 @@ export async function runOnce(cfg: AgentConfig, deps: RunDeps = {}): Promise<num
   const statePath = deps.statePath ?? defaultStatePath()
   const readers: LocalReader[] = deps.localReaders ?? [
     { provider: 'antigravity', read: () => readAntigravity(undefined, undefined, { statePath }) },
+    { provider: 'codex', read: () => readCodexLocal({ fetch: deps.fetch }) },
   ]
 
   const readings: ProviderReading[] = []

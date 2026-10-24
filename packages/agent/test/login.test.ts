@@ -43,7 +43,7 @@ afterEach(() => rm(home, { recursive: true, force: true }))
 const credentialPosts = () => posts.filter((p) => p.url.endsWith('/ingest'))
 
 describe('codex', () => {
-  it('creates CODEX_HOME with mode 700, runs the device login and uploads auth.json', async () => {
+  it('creates CODEX_HOME with mode 700, runs the device login and keeps auth.json on the laptop', async () => {
     const run = vi.fn(async (_c: string, _a: string[], env: NodeJS.ProcessEnv) => {
       expect((await stat(env.CODEX_HOME!)).mode & 0o777).toBe(0o700)
       await writeFile(join(env.CODEX_HOME!, 'auth.json'), codexAuth)
@@ -52,8 +52,8 @@ describe('codex', () => {
     await loginProvider('codex', deps({ runInteractive: run }))
     expect(run.mock.calls[0]!.slice(0, 2)).toEqual(['codex', ['login', '--device-auth']])
     expect(run.mock.calls[0]![2].CODEX_HOME).toBe(join(home, '.vigia', 'codex'))
-    expect(credentialPosts()[0]!.body.credentials[0].provider).toBe('codex')
-    expect(out.join('\n')).toContain('✅ Credencial de Codex subida.')
+    expect(credentialPosts()).toHaveLength(0)
+    expect(out.join('\n')).toContain('Codex queda configurado en el portátil')
   })
 
   it('fails when the login exits non-zero', async () => {
@@ -239,7 +239,7 @@ describe('main', () => {
     const code = await main(['all'], deps({ runInteractive: run, fetch: f, secretTool: async () => ({ code: 1, stdout: '', stderr: '' }) }))
     expect(code).toBe(1)
     expect(order).toEqual(['codex', 'grok'])
-    expect(credentialPosts().map((p) => p.body.credentials[0].provider)).toEqual(['copilot', 'codex', 'kilo', 'qoder'])
+    expect(credentialPosts().map((p) => p.body.credentials[0].provider)).toEqual(['copilot', 'kilo', 'qoder'])
     const text = [...out, ...err].join('\n')
     expect(text).toMatch(/Resumen/)
     expect(text).toMatch(/grok/)
