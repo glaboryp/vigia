@@ -1,0 +1,32 @@
+{
+  "_synthetic": true,
+  "status": "none",
+  "freeWindows": {
+    "dayUsed": 1,
+    "dayLimit": 5,
+    "weekUsed": 6,
+    "weekLimit": 20,
+    "monthUsed": 12,
+    "monthLimit": 40,
+    "dayResetAt": "2026-10-24T07:00:00.000Z",
+    "monthResetAt": "2026-11-01T07:00:00.000Z"
+  },
+  "subscription": {
+    "tierId": "pro",
+    "billingInterval": "monthly",
+    "renewsAt": "2026-11-05T12:00:00.000Z",
+    "usage": {
+      "dayUsed": 2,
+      "dayLimit": 10,
+      "fiveDayUsed": 5,
+      "fiveDayLimit": 30,
+      "monthUsed": 30,
+      "monthLimit": 120,
+      "dayPremiumUsed": 0,
+      "dayPremiumLimit": 3,
+      "dayResetAt": "2026-10-24T07:00:00.000Z",
+      "periodEndsAt": "2026-11-05T12:00:00.000Z"
+    },
+    "tiers": []
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "_synthetic": true,
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "id_token": "synthetic.id.token",
+    "access_token": "synthetic.access.token",
+    "refresh_token": "rt_synthetic_old",
+    "account_id": "acct-synthetic-123"
+  },
+  "last_refresh": "2026-10-20T08:00:00.000Z"
+}

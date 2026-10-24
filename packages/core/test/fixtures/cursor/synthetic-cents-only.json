@@ -1,0 +1,6 @@
+{
+  "_synthetic": true,
+  "billingCycleStart": "2026-10-01T00:00:00.000Z",
+  "billingCycleEnd": "2026-11-01T00:00:00.000Z",
+  "individualUsage": { "plan": { "used": 1250, "limit": 5000 } }
+}

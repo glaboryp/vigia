@@ -1,0 +1,11 @@
+{
+  "_synthetic": true,
+  "access": {
+    "endsAt": "2026-11-19T00:00:00Z",
+    "meters": {
+      "fiveHour": { "resetsAt": "2026-10-23T14:00:00Z", "limitMicroCents": "1200000000", "usedMicroCents": "300000000" },
+      "week": { "resetsAt": "2026-10-26T00:00:00Z", "limitMicroCents": "3000000000", "usedMicroCents": "1200000000" },
+      "month": { "limitMicroCents": "6000000000", "usedMicroCents": "600000000" }
+    }
+  }
+}

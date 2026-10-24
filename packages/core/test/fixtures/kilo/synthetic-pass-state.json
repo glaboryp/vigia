@@ -1,0 +1,19 @@
+[
+  {
+    "result": {
+      "data": {
+        "json": {
+          "_synthetic": true,
+          "status": "active",
+          "tier": "tier_19",
+          "planName": "Kilo Pass",
+          "currentPeriodBaseCreditsUsd": 19,
+          "currentPeriodBonusCreditsUsd": 6,
+          "currentPeriodUsageUsd": 5,
+          "nextBillingAt": "2026-11-12T08:30:00.000Z",
+          "nextRenewalAt": "2026-11-13T08:30:00.000Z"
+        }
+      }
+    }
+  }
+]
