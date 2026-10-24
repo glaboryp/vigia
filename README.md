@@ -107,7 +107,9 @@ Las herramientas de nube se leen desde el Worker: sube cada credencial con
 pnpm --filter agent push-credential <id> <fichero>
 ```
 
-(`id` ∈ `copilot`, `kilo`, `qoder`, `freebuff`, `codex`, `grok`). Como `pnpm --filter` se ejecuta dentro de `packages/agent`, la ruta del fichero debe ser absoluta o empezar por `~/` (no relativa). El script usa la configuración del agente (ver más abajo), valida el formato en local antes de enviar y nunca imprime la credencial. Borra el fichero cuando termines (`shred -u <fichero>`). Hasta que haya un agente configurado, crea `~/.config/vigia/agent.json` primero.
+(`id` ∈ `copilot`, `kilo`, `qoder`, `freebuff`, `codex`, `grok`). Como `pnpm --filter` se ejecuta dentro de `packages/agent`, la ruta del fichero debe ser absoluta o empezar por `~/` (no relativa). El script valida el formato en local antes de enviar y nunca imprime la credencial. Borra el fichero cuando termines (`shred -u <fichero>`).
+
+**Antes de subir credenciales** crea la configuración del agente (pasos 1 y 2 de [Instalar el agente](#instalar-el-agente)): `push-credential` la usa para saber a qué Worker enviar y con qué token.
 
 | Herramienta | Formato del fichero |
 |---|---|
