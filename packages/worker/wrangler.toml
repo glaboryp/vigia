@@ -13,3 +13,6 @@ binding = "DB"
 database_name = "vigia"
 database_id = "5f76d9c0-65ab-49f8-a86a-e58282838d92"
 migrations_dir = "migrations"
+
+[vars]
+CONFIG_JSON = '{"disabled":["kilo","qoder","mimo","opencode"]}'
