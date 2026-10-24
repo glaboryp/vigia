@@ -25,6 +25,15 @@ describe('mimoProvider', () => {
     expect(LOCAL_HTTP_PROVIDERS).toContain(mimoProvider)
   })
 
+  it('reports an account without a token plan as unavailable', async () => {
+    const f = route({
+      usage: () => jsonResponse(fixture('mimo/real-no-plan-usage.json')),
+      detail: () => jsonResponse(fixture('mimo/real-no-plan-detail.json')),
+    })
+    const { reading } = await read(f)
+    expect(reading).toMatchObject({ ok: false, error: { kind: 'unavailable', message: 'Sin Token Plan de MiMo' } })
+  })
+
   it('reads the monthly token plan', async () => {
     const { reading, f } = await read()
     expect(reading).toMatchObject({ ok: true, source: 'local' })
@@ -83,7 +92,7 @@ describe('mimoProvider', () => {
       const f = route({ usage: () => jsonResponse(usage) })
       expect((await read(f)).reading).toMatchObject({ ok: false, error: { kind: 'parse' } })
     }
-    const f = route({ detail: () => jsonResponse({ code: 0, data: { expired: false } }) })
+    const f = route({ detail: () => jsonResponse({ code: 0, data: { expired: false, planCode: 'standard' } }) })
     expect((await read(f)).reading).toMatchObject({ ok: false, error: { kind: 'parse' } })
   })
 
