@@ -31,6 +31,11 @@ export function formatPercent(fraction: number): string {
   return `${Math.round(fraction * 100)} %`
 }
 
+export function formatProgressBar(fraction: number): string {
+  const filled = Math.max(fraction > 0 ? 1 : 0, Math.min(10, Math.round(fraction * 10)))
+  return `[${'#'.repeat(filled)}${'-'.repeat(10 - filled)}]`
+}
+
 export const shortError = (message: string): string =>
   message.length > MAX_ERROR_CHARS ? `${message.slice(0, MAX_ERROR_CHARS)}…` : message
 
@@ -56,11 +61,12 @@ function amount(q: TrackedQuota): string {
 
 function quotaLine(q: TrackedQuota, siblings: number, now: Date): string {
   const pct = escapeHtml(formatPercent(q.remainingFraction))
+  const bar = formatProgressBar(q.remainingFraction)
   const renewal =
     Date.parse(q.resetsAt) > now.getTime()
       ? `se renueva ${formatMadrid(q.resetsAt)} (${formatRelative(now.toISOString(), q.resetsAt)})`
       : 'renovación pendiente de leer'
-  return `• ${displayName(q, siblings)} — te queda ${pct}${amount(q)} · ${renewal}${ageSuffix(q, now)}`
+  return `• ${displayName(q, siblings)} — te queda ${pct} ${bar}${amount(q)} · ${renewal}${ageSuffix(q, now)}`
 }
 
 function siblingCounts(quotas: TrackedQuota[]): Map<ProviderId, number> {
@@ -72,11 +78,11 @@ function siblingCounts(quotas: TrackedQuota[]): Map<ProviderId, number> {
 export function useOrLoseMessage(quotas: TrackedQuota[], now: Date): string {
   const counts = siblingCounts(quotas)
   const lines = quotas.map((q) => quotaLine(q, counts.get(q.provider) ?? 1, now))
-  return ['⏳ <b>Úsalo o piérdelo</b>', 'Te queda saldo y está a punto de renovarse:', ...lines].join('\n')
+  return ['⏳ <b>Úsalo o piérdelo</b>', 'Te queda saldo y está a punto de renovarse:', ...lines].join('\n\n')
 }
 
 export function renewedMessage(q: TrackedQuota): string {
-  const line = `${displayName(q, 2)} — te queda ${escapeHtml(formatPercent(q.remainingFraction))}${amount(q)}`
+  const line = `${displayName(q, 2)} — te queda ${escapeHtml(formatPercent(q.remainingFraction))} ${formatProgressBar(q.remainingFraction)}${amount(q)}`
   return `🔄 <b>Cuota renovada</b>\nYa tienes cuota otra vez: ${line} · próxima renovación ${formatMadrid(q.resetsAt)}`
 }
 
@@ -121,7 +127,7 @@ export function statusMessage(
     for (const q of own) lines.push(`${quotaLine(q, own.length, now)}${stale}`)
   }
   if (lines.length === 0) return '📊 <b>Estado de tus cuotas</b>\nTodavía no hay datos.'
-  return ['📊 <b>Estado de tus cuotas</b>', ...lines].join('\n')
+  return ['📊 <b>Estado de tus cuotas</b>', ...lines].join('\n\n')
 }
 
 export function surplusMessage(items: ReturnType<typeof findSurplus>): string {

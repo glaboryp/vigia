@@ -39,9 +39,11 @@ describe('useOrLoseMessage', () => {
     expect(msg).toMatchInlineSnapshot(`
       "⏳ <b>Úsalo o piérdelo</b>
       Te queda saldo y está a punto de renovarse:
-      • <b>Antigravity</b> · Claude y GPT — te queda 6 % · se renueva lun 26 oct, 15:13 (en 20 h)
-      • <b>Antigravity</b> · Gemini — te queda 50 % · se renueva lun 26 oct, 15:13 (en 20 h)
-      • <b>GitHub Copilot</b> — te queda 30 % · se renueva dom 1 nov, 01:00 (en 6 d 6 h)"
+      • <b>Antigravity</b> · Claude y GPT — te queda 6 % [#---------] · se renueva lun 26 oct, 15:13 (en 20 h)
+
+      • <b>Antigravity</b> · Gemini — te queda 50 % [#####-----] · se renueva lun 26 oct, 15:13 (en 20 h)
+
+      • <b>GitHub Copilot</b> — te queda 30 % [###-------] · se renueva dom 1 nov, 01:00 (en 6 d 6 h)"
     `)
   })
 
@@ -53,7 +55,7 @@ describe('useOrLoseMessage', () => {
     expect(msg).toMatchInlineSnapshot(`
       "⏳ <b>Úsalo o piérdelo</b>
       Te queda saldo y está a punto de renovarse:
-      • <b>Cursor</b> — te queda 25 % (125 de 500 peticiones) · se renueva lun 26 oct, 15:13 (en 20 h)"
+      • <b>Cursor</b> — te queda 25 % [###-------] (125 de 500 peticiones) · se renueva lun 26 oct, 15:13 (en 20 h)"
     `)
   })
 
@@ -62,17 +64,17 @@ describe('useOrLoseMessage', () => {
     expect(msg).toMatchInlineSnapshot(`
       "⏳ <b>Úsalo o piérdelo</b>
       Te queda saldo y está a punto de renovarse:
-      • <b>Antigravity</b> — te queda 6 % · se renueva lun 26 oct, 15:13 (en 20 h) · dato de hace 8 h"
+      • <b>Antigravity</b> — te queda 6 % [#---------] · se renueva lun 26 oct, 15:13 (en 20 h) · dato de hace 8 h"
     `)
   })
 
   it('never rounds a non-empty or non-full quota to 0 % or 100 %', () => {
     const line = (remainingFraction: number) => useOrLoseMessage([tracked({ remainingFraction })], now).split('\n')[2]
-    expect(line(0.004)).toContain('— te queda &lt;1 % ·')
-    expect(line(0.995)).toContain('— te queda &gt;99 % ·')
-    expect(line(0)).toContain('— te queda 0 % ·')
-    expect(line(1)).toContain('— te queda 100 % ·')
-    expect(line(0.014)).toContain('— te queda 1 % ·')
+    expect(line(0.004)).toContain('— te queda &lt;1 % [#---------] ·')
+    expect(line(0.995)).toContain('— te queda &gt;99 % [##########] ·')
+    expect(line(0)).toContain('— te queda 0 % [----------] ·')
+    expect(line(1)).toContain('— te queda 100 % [##########] ·')
+    expect(line(0.014)).toContain('— te queda 1 % [#---------] ·')
     expect(renewedMessage(tracked({ remainingFraction: 0.996 }))).toContain('&gt;99 %')
   })
 
@@ -81,8 +83,9 @@ describe('useOrLoseMessage', () => {
     expect(msg).toMatchInlineSnapshot(`
       "⏳ <b>Úsalo o piérdelo</b>
       Te queda saldo y está a punto de renovarse:
-      • <b>Antigravity</b> · A &lt;b&gt; &amp; C — te queda 6 % · se renueva lun 26 oct, 15:13 (en 20 h)
-      • <b>Antigravity</b> · Otra — te queda 6 % · se renueva lun 26 oct, 15:13 (en 20 h)"
+      • <b>Antigravity</b> · A &lt;b&gt; &amp; C — te queda 6 % [#---------] · se renueva lun 26 oct, 15:13 (en 20 h)
+
+      • <b>Antigravity</b> · Otra — te queda 6 % [#---------] · se renueva lun 26 oct, 15:13 (en 20 h)"
     `)
   })
 })
@@ -91,7 +94,7 @@ describe('renewedMessage', () => {
   it('announces the new quota', () => {
     expect(renewedMessage(tracked({ remainingFraction: 1 }))).toMatchInlineSnapshot(`
       "🔄 <b>Cuota renovada</b>
-      Ya tienes cuota otra vez: <b>Antigravity</b> · Claude y GPT — te queda 100 % · próxima renovación lun 26 oct, 15:13"
+      Ya tienes cuota otra vez: <b>Antigravity</b> · Claude y GPT — te queda 100 % [##########] · próxima renovación lun 26 oct, 15:13"
     `)
   })
 })
@@ -149,10 +152,13 @@ describe('statusMessage', () => {
     )
     expect(msg).toMatchInlineSnapshot(`
       "📊 <b>Estado de tus cuotas</b>
-      • <b>GitHub Copilot</b> — te queda 72 % · renovación pendiente de leer
-      • <b>Codex</b> — te queda 90 % · se renueva dom 25 oct, 21:00 (en 2 h)
+      • <b>GitHub Copilot</b> — te queda 72 % [#######---] · renovación pendiente de leer
+
+      • <b>Codex</b> — te queda 90 % [#########-] · se renueva dom 25 oct, 21:00 (en 2 h)
+
       • <b>Cursor</b> — ⚠️ no puedo leerlo: sesión caducada
-      • <b>Antigravity</b> — te queda 6 % · se renueva lun 26 oct, 15:13 (en 20 h) · dato de hace 5 d (desactualizado)"
+
+      • <b>Antigravity</b> — te queda 6 % [#---------] · se renueva lun 26 oct, 15:13 (en 20 h) · dato de hace 5 d (desactualizado)"
     `)
   })
 
@@ -166,10 +172,14 @@ describe('statusMessage', () => {
     )
     expect(msg).toMatchInlineSnapshot(`
       "📊 <b>Estado de tus cuotas</b>
-      • <b>GitHub Copilot</b> — te queda 50 % · se renueva lun 26 oct, 15:13 (en 20 h)
+      • <b>GitHub Copilot</b> — te queda 50 % [#####-----] · se renueva lun 26 oct, 15:13 (en 20 h)
+
       • <b>Kilo Code</b> — sin datos
+
       • <b>Grok</b> — sin datos
+
       • <b>Antigravity</b> — sin datos del portátil
+
       • <b>opencode</b> — sin datos del portátil"
     `)
   })
