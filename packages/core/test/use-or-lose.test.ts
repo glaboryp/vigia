@@ -27,16 +27,16 @@ const due = (qs: TrackedQuota[], sent = new Set<string>()) => dueUseOrLose(qs, N
 
 describe('dueUseOrLose', () => {
   it('defines leads for weekly and monthly only', () => {
-    expect(USE_OR_LOSE_LEAD_MS).toEqual({ weekly: 24 * HOUR, monthly: 7 * 24 * HOUR })
+    expect(USE_OR_LOSE_LEAD_MS).toEqual({ weekly: 24 * HOUR, monthly: 5 * 24 * HOUR })
   })
   it('includes weekly 6% resetting in 20 h and excludes it at 30 h', () => {
     expect(due([quota()])).toHaveLength(1)
     expect(due([quota({ resetsAt: inHours(30) })])).toHaveLength(0)
   })
-  it('includes monthly 50% resetting in 6 d and excludes it at 8 d', () => {
+  it('includes monthly quota exactly 5 days before reset and excludes it at 6 days', () => {
     const m = { window: 'monthly' as const, remainingFraction: 0.5 }
-    expect(due([quota({ ...m, resetsAt: inHours(6 * 24) })])).toHaveLength(1)
-    expect(due([quota({ ...m, resetsAt: inHours(8 * 24) })])).toHaveLength(0)
+    expect(due([quota({ ...m, resetsAt: inHours(5 * 24) })])).toHaveLength(1)
+    expect(due([quota({ ...m, resetsAt: inHours(6 * 24) })])).toHaveLength(0)
   })
   it('excludes exhausted quotas', () => {
     expect(due([quota({ remainingFraction: 0 })])).toHaveLength(0)

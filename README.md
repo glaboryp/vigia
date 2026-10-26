@@ -4,7 +4,7 @@
 
 VigIA vigila las cuotas de tus herramientas de IA (Copilot, Kilo, Qoder, Freebuff, Codex, Grok, Cursor, Antigravity, MiMo y opencode) y te avisa por Telegram:
 
-- "Úsalo o piérdelo": una cuota semanal (≤ 1 día) o mensual (≤ 7 días) a punto de renovarse con saldo sin gastar. Un único mensaje por evaluación, ordenado por prioridad.
+- "Úsalo o piérdelo": una cuota semanal (≤ 1 día) o mensual (≤ 5 días) a punto de renovarse con saldo sin gastar. Un único mensaje por evaluación, ordenado por prioridad.
 - "Ya tienes cuota otra vez" cuando una cuota agotada se renueva.
 - "No puedo leer X" cuando una herramienta falla (error de autenticación o 3 fallos seguidos) y "X vuelve a funcionar" al recuperarse.
 - Resumen semanal (lunes desde las 09:00, Europe/Madrid) y "¿Me sobra el plan?" (día 1 de mes desde las 09:00); si un envío falla se reintenta en el siguiente cron del mismo día.
@@ -146,7 +146,7 @@ Si el fichero no es válido para esa herramienta, el script lo dice sin enviar n
 
 Cada una necesita un token estático. Dónde encontrarlo (son rutas no oficiales; si cambian, la herramienta falla con "No puedo leer X" y habrá que revisarlas):
 
-- **Copilot**: el token OAuth de GitHub que usa el plugin de Copilot, normalmente en `~/.config/github-copilot/apps.json` (campo `oauth_token`). No caduca.
+- **Copilot**: el token OAuth de GitHub que usa el plugin de Copilot, normalmente en `~/.config/github-copilot/apps.json` (campo `oauth_token`). Si deja de funcionar, inicia sesión de nuevo con el plugin y vuelve a subir la credencial.
 - **Kilo**: la API key de https://app.kilo.ai/profile.
 - **Qoder**: crea un Personal Access Token en tu cuenta de Qoder.
 - **Freebuff**: el token de sesión de Freebuff/Codebuff; el CLI lo guarda en el llavero de GNOME (o, si no hay llavero, en `~/.config/manicode/credentials.json`, campo `authToken`).
@@ -289,7 +289,8 @@ Verificación de extremo a extremo: `/estado` en Telegram muestra las 10 herrami
 
 | Qué | Dónde |
 |---|---|
-| Credenciales de nube (Copilot, Kilo, Qoder, Freebuff, Codex, Grok, Cursor) | D1, cifradas con AES-GCM. La clave `CREDENTIALS_KEY` es un secreto del Worker. Nunca en el repositorio. |
+| Credenciales de nube (Copilot, Kilo, Qoder, Freebuff, Grok, Cursor) | D1, cifradas con AES-GCM. La clave `CREDENTIALS_KEY` es un secreto del Worker. Nunca en el repositorio. |
+| Credencial de Codex | Solo en el portátil, en `~/.vigia/codex/auth.json`; el agente la renueva localmente. |
 | Cookies de Brave (MiMo, opencode) | Solo en el portátil: el agente las lee en cada ejecución y sube únicamente las cuotas. |
 | Token de Cursor | Se sube a D1 (cifrado). El hash de la última versión subida está en `~/.config/vigia/state.json`. |
 | `INGEST_TOKEN` | Secreto del Worker y `~/.config/vigia/agent.json` (modo 600). |
