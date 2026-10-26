@@ -4,7 +4,7 @@
 
 VigIA vigila las cuotas de tus herramientas de IA (Copilot, Kilo, Qoder, Freebuff, Codex, Grok, Cursor, Antigravity, MiMo y opencode) y te avisa por Telegram:
 
-- "Úsalo o piérdelo": una cuota semanal (≤ 1 día) o mensual (≤ 7 días) a punto de renovarse con saldo sin gastar. Un único mensaje por evaluación, ordenado por prioridad.
+- "Úsalo o piérdelo": una cuota semanal (≤ 1 día) o mensual (≤ 4 días) a punto de renovarse con saldo sin gastar. Un único mensaje por evaluación, ordenado por prioridad.
 - "Ya tienes cuota otra vez" cuando una cuota agotada se renueva.
 - "No puedo leer X" cuando una herramienta falla (error de autenticación o 3 fallos seguidos) y "X vuelve a funcionar" al recuperarse.
 - Resumen semanal (lunes desde las 09:00, Europe/Madrid) y "¿Me sobra el plan?" (día 1 de mes desde las 09:00); si un envío falla se reintenta en el siguiente cron del mismo día.

@@ -9,7 +9,7 @@ export interface TrackedQuota extends Quota {
 
 export const USE_OR_LOSE_LEAD_MS: Partial<Record<Window, number>> = {
   weekly: 24 * HOUR_MS,
-  monthly: 7 * 24 * HOUR_MS,
+  monthly: 4 * 24 * HOUR_MS,
 }
 
 export function useOrLoseKey(q: TrackedQuota): string {
