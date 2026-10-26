@@ -9,7 +9,7 @@ export const FIX_HINTS: Record<ProviderId, string> = {
   mimo: 'Inicia sesión en platform.xiaomimimo.com con Brave',
   opencode: 'Inicia sesión en opencode.ai con Brave',
   antigravity: 'Ejecuta `agy` y vuelve a iniciar sesión',
-  codex: 'Repite el login de la nube (ver README)',
+  codex: 'Repite el login: pnpm --filter agent run login codex',
   grok: 'Repite el login de la nube (ver README)',
   copilot: 'Genera un token nuevo y súbelo (ver README)',
   kilo: 'Genera un token nuevo y súbelo (ver README)',
@@ -17,7 +17,7 @@ export const FIX_HINTS: Record<ProviderId, string> = {
   freebuff: 'Genera un token nuevo y súbelo (ver README)',
 }
 
-export const LOCAL_PROVIDERS: ProviderId[] = ['antigravity', 'mimo', 'opencode']
+export const LOCAL_PROVIDERS: ProviderId[] = ['codex', 'antigravity', 'mimo', 'opencode']
 const OLD_DATA_MS = 6 * 3_600_000
 const PROVIDER_ORDER = Object.keys(PROVIDER_LABELS) as ProviderId[]
 
@@ -60,7 +60,7 @@ function quotaLine(q: TrackedQuota, siblings: number, now: Date): string {
     Date.parse(q.resetsAt) > now.getTime()
       ? `se renueva ${formatMadrid(q.resetsAt)} (${formatRelative(now.toISOString(), q.resetsAt)})`
       : 'renovación pendiente de leer'
-  return `• ${displayName(q, siblings)} — ${pct}${amount(q)} · ${renewal}${ageSuffix(q, now)}`
+  return `• ${displayName(q, siblings)} — te queda ${pct}${amount(q)} · ${renewal}${ageSuffix(q, now)}`
 }
 
 function siblingCounts(quotas: TrackedQuota[]): Map<ProviderId, number> {
@@ -76,7 +76,7 @@ export function useOrLoseMessage(quotas: TrackedQuota[], now: Date): string {
 }
 
 export function renewedMessage(q: TrackedQuota): string {
-  const line = `${displayName(q, 2)} — ${escapeHtml(formatPercent(q.remainingFraction))}${amount(q)}`
+  const line = `${displayName(q, 2)} — te queda ${escapeHtml(formatPercent(q.remainingFraction))}${amount(q)}`
   return `🔄 <b>Cuota renovada</b>\nYa tienes cuota otra vez: ${line} · próxima renovación ${formatMadrid(q.resetsAt)}`
 }
 

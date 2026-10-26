@@ -62,6 +62,9 @@ function parsePeriodEnd(value: unknown, offset: string): string {
 
 function parseQuota(usage: JsonRecord, detail: JsonRecord, offset: string): Quota {
   if (detail.expired === true) throw new ProviderError('unavailable', 'El plan de MiMo ha caducado')
+  if (detail.planCode == null && detail.currentPeriodEnd == null) {
+    throw new ProviderError('unavailable', 'Sin Token Plan de MiMo')
+  }
   const monthUsage = usage.monthUsage
   const items = isRecord(monthUsage) && Array.isArray(monthUsage.items) ? monthUsage.items.filter(isRecord) : []
   const item = items.find((i) => i.name === QUOTA_NAME) ?? items[0]

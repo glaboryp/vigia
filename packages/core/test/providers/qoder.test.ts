@@ -32,6 +32,16 @@ describe('qoderProvider', () => {
     expect(() => qoderProvider.parseCredential('{"x":1}')).toThrow()
   })
 
+  it('reports a free account without credits as unavailable', async () => {
+    const fetchFn = route({
+      [EXCHANGE]: () => jsonResponse(fixture('qoder/real-exchange.json')),
+      [V3]: () => jsonResponse(fixture('qoder/real-free-status.json')),
+      [V2]: () => jsonResponse(fixture('qoder/real-free-usage.json')),
+    })
+    const { reading } = await qoderProvider.read(ctx(CRED, fetchFn))
+    expect(reading).toMatchObject({ ok: false, error: { kind: 'unavailable', message: 'Tu plan de Qoder no incluye créditos' } })
+  })
+
   it('exchanges the PAT then reads v3 status', async () => {
     const fetchFn = route({
       [EXCHANGE]: exchangeOk,

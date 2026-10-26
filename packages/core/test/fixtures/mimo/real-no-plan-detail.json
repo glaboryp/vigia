@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "message": "",
+  "data": {
+    "planCode": null,
+    "planName": null,
+    "currentPeriodEnd": null,
+    "expired": null,
+    "enableAutoRenew": false,
+    "autoRenewDiscount": "0.88",
+    "hasAutoRenewSubscribed": false,
+    "clawEnabled": false,
+    "clawPeriodEnd": null,
+    "clawPurchased": false
+  }
+}

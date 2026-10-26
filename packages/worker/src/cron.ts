@@ -53,7 +53,7 @@ export function enabledProviders(env: Env): ProviderId[] {
 export async function runCloudProviders(env: Env, now: Date, deps: CronDeps = {}): Promise<ProviderReading[]> {
   const repo = new Repo(env.DB, env.CREDENTIALS_KEY)
   const { disabled } = parseConfig(env.CONFIG_JSON)
-  const fetchFn = deps.fetch ?? fetch
+  const fetchFn: typeof fetch = deps.fetch ?? ((input, init) => fetch(input, init))
   const readings: ProviderReading[] = []
   for (const provider of deps.providers ?? CLOUD_PROVIDERS) {
     if (disabled.includes(provider.id)) continue

@@ -37,9 +37,8 @@ function auth(init: RequestInit) {
 }
 
 describe('codexProvider', () => {
-  it('is registered as a cloud provider', () => {
-    expect(CLOUD_PROVIDERS).toContain(codexProvider)
-    expect(codexProvider.source).toBe('cloud')
+  it('is read from the laptop, not from the cloud', () => {
+    expect(CLOUD_PROVIDERS).not.toContain(codexProvider)
   })
 
   it('parses a raw CODEX_HOME auth.json and serializes it flattened', () => {

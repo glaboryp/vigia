@@ -88,13 +88,15 @@ function ageText(ms: number): string {
   return hours >= 48 ? `${Math.floor(hours / 24)} d` : `${hours} h`
 }
 
-function localAgeNote(quotas: StoredQuota[], now: Date): string {
-  const parts = LOCAL_PROVIDERS.map((id) => {
+function localAgeNote(quotas: StoredQuota[], now: Date, enabled: ProviderId[]): string {
+  const local = LOCAL_PROVIDERS.filter((id) => enabled.includes(id))
+  if (local.length === 0) return ''
+  const parts = local.map((id) => {
     const readings = quotas.filter((q) => q.provider === id).map((q) => Date.parse(q.readAt))
     const age = readings.length === 0 ? 'sin datos' : `hace ${ageText(now.getTime() - Math.max(...readings))}`
     return `${escapeHtml(PROVIDER_LABELS[id])} (${age})`
   })
-  return `ℹ️ Antigravity, MiMo Code y opencode dependen del portátil; último dato: ${parts.join(', ')}`
+  return `ℹ️ Leídos desde el portátil; último dato: ${parts.join(', ')}`
 }
 
 function priorityMessage(quotas: StoredQuota[], now: Date): string {
@@ -104,7 +106,7 @@ function priorityMessage(quotas: StoredQuota[], now: Date): string {
     const siblings = usable.filter((o) => o.provider === q.provider).length
     const label = escapeHtml(PROVIDER_LABELS[q.provider])
     const name = siblings > 1 ? ` · ${escapeHtml(q.name)}` : ''
-    return `• <b>${label}</b>${name} — ${escapeHtml(formatPercent(q.remainingFraction))} · se renueva ${formatMadrid(q.resetsAt)}`
+    return `• <b>${label}</b>${name} — te queda ${escapeHtml(formatPercent(q.remainingFraction))} · se renueva ${formatMadrid(q.resetsAt)}`
   })
   return ['🎯 <b>Qué usar primero</b>', ...lines].join('\n')
 }
@@ -173,7 +175,9 @@ async function refreshNow(env: Env, now: Date, deps: CronDeps): Promise<void> {
   }
   const repo = new Repo(env.DB, env.CREDENTIALS_KEY)
   const quotas = await repo.getCurrentQuotas()
-  const text = `${statusMessage(quotas, await repo.getHealth(), now, enabledProviders(env))}\n${localAgeNote(quotas, now)}`
+  const enabled = enabledProviders(env)
+  const note = localAgeNote(quotas, now, enabled)
+  const text = `${statusMessage(quotas, await repo.getHealth(), now, enabled)}${note ? `\n${note}` : ''}`
   await sendMessage(env, text, deps.fetch)
 }
 

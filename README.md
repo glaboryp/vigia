@@ -101,15 +101,35 @@ La página `/` exige un JWT de Access (sin él devuelve 403), pero `/ingest`, `/
 
 ## Credenciales por herramienta
 
-Las herramientas de nube se leen desde el Worker: sube cada credencial con
+Las herramientas de nube se leen desde el Worker. La forma principal es que el agente obtenga la credencial y la suba él mismo, sin copiar tokens a mano:
+
+```bash
+pnpm --filter agent run login <herramienta>
+pnpm --filter agent run login all
+```
+
+(`herramienta` ∈ `copilot`, `codex`, `grok`, `freebuff`, `kilo`, `qoder`; `all` las recorre en ese orden, sigue tras un fallo y muestra un resumen). Valida el formato en local, nunca imprime la credencial y solo escribe en disco los `auth.json` que gestionan Codex y Grok.
+
+**Antes de subir credenciales** crea la configuración del agente (pasos 1 y 2 de [Instalar el agente](#instalar-el-agente)): `login` y `push-credential` la usan para saber a qué Worker enviar y con qué token.
+
+| Herramienta | Qué hace `login` |
+|---|---|
+| Copilot | Flujo de dispositivo de GitHub: te muestra una URL y un código; lo introduces en el navegador. |
+| Codex | Ejecuta `codex login --device-auth` con un `CODEX_HOME` propio (`~/.vigia/codex`, que crea él). No sube nada: Codex se lee desde el portátil. |
+| Grok | Ejecuta `grok login` con un `GROK_HOME` propio (`~/.vigia/grok`, que crea él) y sube su `auth.json`. Si ya existe un `auth.json` válido, no vuelve a iniciar sesión. |
+| Freebuff | Lee el token del llavero de GNOME (`secret-tool`, paquete `libsecret-tools`); inicia sesión antes con `freebuff`. |
+| Kilo | Te pide la API key de https://app.kilo.ai/profile (la entrada no se muestra). |
+| Qoder | Te pide un Personal Access Token de https://qoder.com/account/integrations (la entrada no se muestra). |
+
+### Alternativa manual: `push-credential`
+
+Si prefieres subir una credencial que ya tienes en un fichero:
 
 ```bash
 pnpm --filter agent push-credential <id> <fichero>
 ```
 
-(`id` ∈ `copilot`, `kilo`, `qoder`, `freebuff`, `codex`, `grok`). Como `pnpm --filter` se ejecuta dentro de `packages/agent`, la ruta del fichero debe ser absoluta o empezar por `~/` (no relativa). El script valida el formato en local antes de enviar y nunca imprime la credencial. Borra el fichero cuando termines (`shred -u <fichero>`).
-
-**Antes de subir credenciales** crea la configuración del agente (pasos 1 y 2 de [Instalar el agente](#instalar-el-agente)): `push-credential` la usa para saber a qué Worker enviar y con qué token.
+Como `pnpm --filter` se ejecuta dentro de `packages/agent`, la ruta del fichero debe ser absoluta o empezar por `~/` (no relativa). Borra el fichero cuando termines (`shred -u <fichero>`). Formato esperado:
 
 | Herramienta | Formato del fichero |
 |---|---|
@@ -122,14 +142,14 @@ pnpm --filter agent push-credential <id> <fichero>
 
 Si el fichero no es válido para esa herramienta, el script lo dice sin enviar nada.
 
-### Copilot, Kilo, Qoder, Freebuff
+### Copilot, Kilo, Qoder, Freebuff (manual)
 
-Cada una necesita un token estático. El token suele estar anidado dentro de `apps.json` / `credentials.json`: extrae solo el valor. Dónde encontrarlo (son rutas no oficiales; si cambian, la herramienta falla con "No puedo leer X" y habrá que revisarlas):
+Cada una necesita un token estático. Dónde encontrarlo (son rutas no oficiales; si cambian, la herramienta falla con "No puedo leer X" y habrá que revisarlas):
 
 - **Copilot**: el token OAuth de GitHub que usa el plugin de Copilot, normalmente en `~/.config/github-copilot/apps.json` (campo `oauth_token`). No caduca.
-- **Kilo**: el token de sesión de Kilo (dura aproximadamente un año). Cópialo del fichero de credenciales del CLI de Kilo o de las herramientas de desarrollador del navegador en app.kilo.ai.
+- **Kilo**: la API key de https://app.kilo.ai/profile.
 - **Qoder**: crea un Personal Access Token en tu cuenta de Qoder.
-- **Freebuff**: el token de sesión de Freebuff/Codebuff, que el CLI guarda en `~/.config/manicode/credentials.json` (campo `authToken`).
+- **Freebuff**: el token de sesión de Freebuff/Codebuff; el CLI lo guarda en el llavero de GNOME (o, si no hay llavero, en `~/.config/manicode/credentials.json`, campo `authToken`).
 
 ```bash
 install -m 600 /dev/null /tmp/vigia-cred
@@ -138,22 +158,23 @@ pnpm --filter agent push-credential copilot /tmp/vigia-cred
 shred -u /tmp/vigia-cred
 ```
 
-### Codex
+### Codex (se lee desde el portátil)
 
-Usa un login **separado** del del portátil, para que el refresco del token rotado en la nube no invalide tu sesión:
+ChatGPT rechaza (HTTP 403) las peticiones que salen de los servidores de Cloudflare, así que Codex lo lee el agente del portátil, como Antigravity. Usa un login **separado** del tuyo (`~/.vigia/codex`) para que la renovación del token no invalide tu sesión de Codex:
 
 ```bash
-CODEX_HOME=~/.vigia/codex codex login --device-auth
-pnpm --filter agent push-credential codex ~/.vigia/codex/auth.json
+pnpm --filter agent run login codex
+# equivale a: mkdir -p -m 700 ~/.vigia/codex && CODEX_HOME=~/.vigia/codex codex login --device-auth
 ```
 
-Después puedes borrar `~/.vigia/codex`. El Worker guarda en D1 el refresh token rotado en cada lectura.
+No borres `~/.vigia/codex`: el agente lee de ahí y guarda en ese fichero el token renovado.
 
-### Grok
+### Grok (manual)
 
-Igual: login separado del `~/.grok` del portátil.
+`pnpm --filter agent run login grok` crea `~/.vigia/grok` y hace todo lo siguiente. A mano, login separado del `~/.grok` del portátil:
 
 ```bash
+mkdir -p -m 700 ~/.vigia/grok
 GROK_HOME=~/.vigia/grok grok login
 pnpm --filter agent push-credential grok ~/.vigia/grok/auth.json
 ```
@@ -232,7 +253,7 @@ El agente lee las cookies de Brave (perfil `Default`) y hace las peticiones desd
 | MiMo | Inicia sesión en platform.xiaomimimo.com con Brave. |
 | opencode | Inicia sesión en opencode.ai con Brave. |
 | Antigravity | Ejecuta `agy` y vuelve a iniciar sesión (ver también el "latch" más abajo). |
-| Codex | Repite el login de la nube (`CODEX_HOME=~/.vigia/codex codex login --device-auth` y `push-credential codex ...`). |
+| Codex | Repite el login: `pnpm --filter agent run login codex`. |
 | Grok | Repite el login de la nube (`GROK_HOME=~/.vigia/grok grok login` y `push-credential grok ...`). |
 | Copilot, Kilo, Qoder, Freebuff | Genera un token nuevo y súbelo con `push-credential`. |
 

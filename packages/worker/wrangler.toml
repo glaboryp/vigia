@@ -3,6 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
+preview_urls = false
 
 [triggers]
 crons = ["*/30 * * * *"]
@@ -10,5 +11,8 @@ crons = ["*/30 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "vigia"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "5f76d9c0-65ab-49f8-a86a-e58282838d92"
 migrations_dir = "migrations"
+
+[vars]
+CONFIG_JSON = '{"disabled":["kilo","qoder","mimo","opencode"]}'

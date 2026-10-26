@@ -157,7 +157,7 @@ describe('POST /telegram', () => {
   it('/prioridad shows <1 % for an almost empty quota', async () => {
     await seedQuota({ provider: 'codex', quotaId: 'a', remainingFraction: 0.004 })
     await send('/prioridad')
-    expect(tg.texts[0]).toContain('— &lt;1 % ·')
+    expect(tg.texts[0]).toContain('— te queda &lt;1 % ·')
   })
 
   it('/historial without data', async () => {

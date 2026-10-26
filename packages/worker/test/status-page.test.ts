@@ -88,13 +88,13 @@ const ALL = Object.keys(PROVIDER_LABELS) as ProviderId[]
 const base = { quotas: [], health: [], closes: [], surplus: [], now: NOW, enabled: ALL }
 
 it('lists every enabled provider, marking those without data', () => {
-  const html = renderStatusPage({ ...base, quotas: [quota()], enabled: ['copilot', 'codex', 'mimo'] })
+  const html = renderStatusPage({ ...base, quotas: [quota()], enabled: ['copilot', 'kilo', 'mimo'] })
   const cards = [...html.matchAll(/<section class="card"><h3>([^<]+)<\/h3>\n(?:<div class="badges">.*?<\/div>\n)?(.*?)<\/section>/gs)].map((m) => [m[1], m[2]])
-  expect(cards.map((c) => c[0])).toEqual(['GitHub Copilot', 'Codex', 'MiMo Code'])
+  expect(cards.map((c) => c[0])).toEqual(['GitHub Copilot', 'Kilo Code', 'MiMo Code'])
   expect(cards[1]![1]).toContain('Sin datos')
   expect(cards[1]![1]).not.toContain('portátil')
   expect(cards[2]![1]).toContain('Sin datos del portátil')
-  expect(html).not.toContain('Kilo Code')
+  expect(html).not.toContain('Grok')
 })
 
 it('serves every provider not disabled in CONFIG_JSON', async () => {

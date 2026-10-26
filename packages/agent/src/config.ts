@@ -33,6 +33,19 @@ export async function loadConfig(path: string = defaultConfigPath()): Promise<Ag
   const { workerUrl, ingestToken, disabled } = raw as Record<string, unknown>
   if (typeof workerUrl !== 'string' || workerUrl === '') throw new Error(`Falta "workerUrl" en ${path}`)
   if (typeof ingestToken !== 'string' || ingestToken === '') throw new Error(`Falta "ingestToken" en ${path}`)
+  const placeholder = (value: string) => (/[<>]/.test(value) ? (value.match(/<[^>]*>/)?.[0] ?? '<…>') : undefined)
+  const urlPlaceholder = placeholder(workerUrl)
+  if (urlPlaceholder) {
+    throw new Error(
+      `Edita ~/.config/vigia/agent.json: sustituye ${urlPlaceholder} por el subdominio real de tu Worker (lo ves en el panel de Cloudflare → Workers)`,
+    )
+  }
+  const tokenPlaceholder = placeholder(ingestToken)
+  if (tokenPlaceholder) {
+    throw new Error(
+      `Edita ~/.config/vigia/agent.json: sustituye ${tokenPlaceholder} por el INGEST_TOKEN real que subiste al Worker`,
+    )
+  }
   let url: URL
   try {
     url = new URL(workerUrl)

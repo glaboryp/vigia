@@ -1,25 +1,28 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { CLOUD_PROVIDERS, LOCAL_HTTP_PROVIDERS, PROVIDER_LABELS } from 'core'
+import { CLOUD_PROVIDERS, LOCAL_HTTP_PROVIDERS, PROVIDER_LABELS, type ProviderId } from 'core'
 import { loadConfig, type AgentConfig } from './config.js'
 import { IngestError, postIngest } from './ingest-client.js'
 
-export async function pushCredential(cfg: AgentConfig, id: string, raw: string, fetchFn?: typeof fetch): Promise<void> {
+export function validateCredential(id: string, raw: string): { provider: ProviderId; value: string } {
   const provider = CLOUD_PROVIDERS.find((p) => p.id === id)
   if (!provider) {
-    if ([...LOCAL_HTTP_PROVIDERS, { id: 'antigravity' }].some((p) => p.id === id)) {
+    if ([...LOCAL_HTTP_PROVIDERS, { id: 'antigravity' }, { id: 'codex' }].some((p) => p.id === id)) {
       throw new Error(`${PROVIDER_LABELS[id as keyof typeof PROVIDER_LABELS]} se lee en local: su credencial no se sube`)
     }
     throw new Error(`Proveedor desconocido: ${id}. Disponibles: ${CLOUD_PROVIDERS.map((p) => p.id).join(', ')}`)
   }
   if (raw.trim() === '') throw new Error('El fichero de credencial está vacío')
-  let value: string
   try {
-    value = provider.serializeCredential(provider.parseCredential(raw.trim()))
+    return { provider: provider.id, value: provider.serializeCredential(provider.parseCredential(raw.trim())) }
   } catch {
     throw new Error(`El fichero no contiene una credencial válida para ${id}`)
   }
-  await postIngest(cfg, { readings: [], credentials: [{ provider: provider.id, value }] }, fetchFn)
+}
+
+export async function pushCredential(cfg: AgentConfig, id: string, raw: string, fetchFn?: typeof fetch): Promise<void> {
+  const credential = validateCredential(id, raw)
+  await postIngest(cfg, { readings: [], credentials: [credential] }, fetchFn)
 }
 
 export interface MainDeps {

@@ -3,7 +3,7 @@ import { freebuffProvider } from '../../src/providers/freebuff.js'
 import { CLOUD_PROVIDERS } from '../../src/providers/registry.js'
 import { NOW, ctx, fixture, jsonResponse, mockFetch } from './helpers.js'
 
-const SESSION_URL = 'https://codebuff.com/api/v1/freebuff/session'
+const SESSION_URL = 'https://www.codebuff.com/api/v1/freebuff/session'
 
 const FREE = {
   dayUsed: 0,
