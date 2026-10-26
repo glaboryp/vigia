@@ -72,10 +72,45 @@ function subscriptionQuotas(sub: JsonRecord): Quota[] {
   return month ? [month] : []
 }
 
+function freebuckQuotas(freebucks: JsonRecord): Quota[] {
+  const daily = freebucks.daily
+  if (!isRecord(daily)) return []
+
+  const limit = pickNumber(daily, 'limit')
+  const remaining = pickNumber(daily, 'remaining')
+  const spent = pickNumber(daily, 'spent')
+  const resetsAt = toIso(pick(daily, 'resetAt'))
+  if (limit === undefined || resetsAt === undefined || (remaining === undefined && spent === undefined)) {
+    throw new ProviderError('parse', 'Freebuff freebucks.daily has incomplete quota data')
+  }
+  if (limit <= 0) return []
+
+  const left = Math.max(0, Math.min(limit, remaining ?? limit - spent!))
+  return [{
+    provider: 'freebuff',
+    quotaId: 'freebucks-daily',
+    name: 'Freebuff (gratis, diario)',
+    window: 'daily',
+    remainingFraction: clampFraction(left / limit),
+    remaining: left,
+    total: limit,
+    unit: 'Freebucks',
+    resetsAt,
+  }]
+}
+
 function parseQuotas(body: unknown): Quota[] {
   if (!isRecord(body)) throw new ProviderError('parse', 'Unexpected Freebuff response')
   const quotas: Quota[] = []
   const errors: ProviderError[] = []
+  if (isRecord(body.freebucks)) {
+    try {
+      quotas.push(...freebuckQuotas(body.freebucks))
+    } catch (err) {
+      if (!(err instanceof ProviderError)) throw err
+      errors.push(err)
+    }
+  }
   const attempts: [unknown, (v: JsonRecord) => Quota[]][] = [
     [body.freeWindows, freeQuotas],
     [body.subscription, subscriptionQuotas],
