@@ -170,7 +170,7 @@ function decode(bytes: Uint8Array): ProtoField[] {
 }
 
 function usedPercent(field: ProtoField | undefined): number {
-  if (!field) return 0
+  if (!field) throw new ProviderError('unavailable', 'Grok no ha informado del porcentaje de uso')
   const { wire, value } = field
   let n: number | undefined
   if (wire === 0 && typeof value === 'bigint') n = Number(value)
