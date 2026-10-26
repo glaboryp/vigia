@@ -109,7 +109,7 @@ function priorityMessage(quotas: StoredQuota[], now: Date): string {
     const name = siblings > 1 ? ` · ${escapeHtml(q.name)}` : ''
     return `• <b>${label}</b>${name} — te queda ${escapeHtml(formatPercent(q.remainingFraction))} ${formatProgressBar(q.remainingFraction)} · se renueva ${formatMadrid(q.resetsAt)}`
   })
-  return ['🎯 <b>Qué usar primero</b>', ...lines].join('\n\n')
+  return `🎯 <b>Qué usar primero</b>\n${lines.join('\n\n')}`
 }
 
 async function historyMessage(repo: Repo, provider: ProviderId): Promise<string> {

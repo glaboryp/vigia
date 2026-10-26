@@ -78,7 +78,7 @@ function siblingCounts(quotas: TrackedQuota[]): Map<ProviderId, number> {
 export function useOrLoseMessage(quotas: TrackedQuota[], now: Date): string {
   const counts = siblingCounts(quotas)
   const lines = quotas.map((q) => quotaLine(q, counts.get(q.provider) ?? 1, now))
-  return ['⏳ <b>Úsalo o piérdelo</b>', 'Te queda saldo y está a punto de renovarse:', ...lines].join('\n\n')
+  return `⏳ <b>Úsalo o piérdelo</b>\nTe queda saldo y está a punto de renovarse:\n\n${lines.join('\n\n')}`
 }
 
 export function renewedMessage(q: TrackedQuota): string {
@@ -127,7 +127,7 @@ export function statusMessage(
     for (const q of own) lines.push(`${quotaLine(q, own.length, now)}${stale}`)
   }
   if (lines.length === 0) return '📊 <b>Estado de tus cuotas</b>\nTodavía no hay datos.'
-  return ['📊 <b>Estado de tus cuotas</b>', ...lines].join('\n\n')
+  return `📊 <b>Estado de tus cuotas</b>\n${lines.join('\n\n')}`
 }
 
 export function surplusMessage(items: ReturnType<typeof findSurplus>): string {
