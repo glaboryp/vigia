@@ -25,6 +25,7 @@ const TOKEN_URL = 'https://auth.openai.com/oauth/token'
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const REFRESH_MARGIN_MS = 60 * 60 * 1000
 const WEEKLY_MIN_SECONDS = 3 * 24 * 3600
+const MONTHLY_MIN_SECONDS = 14 * 24 * 3600
 const AUTH_REFRESH_CODES = new Set([
   'refresh_token_reused',
   'refresh_token_expired',
@@ -115,7 +116,14 @@ function parseWindow(window: JsonRecord, fallback: '5h' | 'weekly', now: Date): 
   const used = pickNumber(window, 'used_percent', 'usage_percent')
   if (used === undefined) throw new ProviderError('parse', 'Codex window has no used_percent')
   const seconds = pickNumber(window, 'limit_window_seconds')
-  const kind = seconds === undefined ? fallback : seconds >= WEEKLY_MIN_SECONDS ? 'weekly' : '5h'
+  const kind =
+    seconds === undefined
+      ? fallback
+      : seconds >= MONTHLY_MIN_SECONDS
+        ? 'monthly'
+        : seconds >= WEEKLY_MIN_SECONDS
+          ? 'weekly'
+          : '5h'
   let resetsAt = toIso(pick(window, 'reset_at'))
   const after = pickNumber(window, 'reset_after_seconds')
   if (!resetsAt && after !== undefined) resetsAt = new Date(now.getTime() + after * 1000).toISOString()
@@ -123,7 +131,7 @@ function parseWindow(window: JsonRecord, fallback: '5h' | 'weekly', now: Date): 
   return {
     provider: 'codex',
     quotaId: kind,
-    name: kind === 'weekly' ? 'Semanal' : '5 horas',
+    name: kind === 'monthly' ? 'Mensual' : kind === 'weekly' ? 'Semanal' : '5 horas',
     window: kind,
     remainingFraction: clampFraction((100 - used) / 100),
     resetsAt,
@@ -146,7 +154,7 @@ function parseQuotas(body: unknown, now: Date): Quota[] {
     if (!quotas.has(quota.quotaId)) quotas.set(quota.quotaId, quota)
   }
   if (quotas.size === 0) throw new ProviderError('unavailable', 'Sin límites de uso de Codex')
-  return ['weekly', '5h'].flatMap((id) => quotas.get(id) ?? [])
+  return ['monthly', 'weekly', '5h'].flatMap((id) => quotas.get(id) ?? [])
 }
 
 export const codexProvider: Provider<CodexCredential> = {
