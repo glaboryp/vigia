@@ -177,10 +177,13 @@ describe('grokProvider', () => {
     expect(headers.get('authorization')).toBe('Bearer access-old')
   })
 
-  it('treats an omitted usage percentage as zero usage', async () => {
+  it('reports usage as unavailable when Grok omits the percentage', async () => {
     const fetchFn = mockFetch(() => grpcResponse(frame(0, creditsMessage({ end: PERIOD_END }))))
     const { reading } = await grokProvider.read(ctx(cred(), fetchFn))
-    expect(reading.ok && reading.quotas[0]!.remainingFraction).toBe(1)
+    expect(reading).toMatchObject({
+      ok: false,
+      error: { kind: 'unavailable', message: 'Grok no ha informado del porcentaje de uso' },
+    })
   })
 
   it('accepts an integer usage percentage and clamps it', async () => {

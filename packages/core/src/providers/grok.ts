@@ -170,7 +170,7 @@ function decode(bytes: Uint8Array): ProtoField[] {
 }
 
 function usedPercent(field: ProtoField | undefined): number {
-  if (!field) return 0
+  if (!field) throw new ProviderError('unavailable', 'Grok no ha informado del porcentaje de uso')
   const { wire, value } = field
   let n: number | undefined
   if (wire === 0 && typeof value === 'bigint') n = Number(value)
@@ -187,7 +187,6 @@ function parseCredits(data: Uint8Array): Quota {
   const config = decode(data).find((f) => f.field === 1 && f.wire === 2)?.value
   if (!(config instanceof Uint8Array)) throw new ProviderError('unavailable', 'Sin créditos semanales de Grok')
   const fields = decode(config)
-  const percent = usedPercent(fields.find((f) => f.field === 1))
   const periodEnd = fields.find((f) => f.field === 5 && f.wire === 2)?.value
   let seconds: bigint | Uint8Array | undefined
   if (periodEnd instanceof Uint8Array) {
@@ -199,6 +198,7 @@ function parseCredits(data: Uint8Array): Quota {
   }
   if (typeof seconds !== 'bigint') throw new ProviderError('parse', 'Grok credits config has no period end')
   if (seconds <= 0n || seconds > MAX_TIMESTAMP_S) throw new ProviderError('parse', 'Grok period end is out of range')
+  const percent = usedPercent(fields.find((f) => f.field === 1))
   return {
     provider: 'grok',
     quotaId: 'weekly',
