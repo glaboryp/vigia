@@ -37,7 +37,7 @@ Requisito transversal: **lo más automático posible**. Se aceptan métodos frá
 
 Por Gloria:
 - Canal: **bot de Telegram**, con **comandos** (no solo notificaciones).
-- Umbrales "úsalo o piérdelo": cuota **semanal → 1 día antes** de la renovación; **mensual → 4 días antes**. Se avisa **siempre que quede algo (>0%)**; si no queda nada, no se avisa.
+- Umbrales "úsalo o piérdelo": cuota **semanal → 1 día antes** de la renovación; **mensual → 5 días antes**. Se avisa **siempre que quede algo (>0%)**; si no queda nada, no se avisa.
 - Todos los "úsalo o piérdelo" de una misma comprobación van **en un único mensaje**, ordenados por prioridad.
 - Las credenciales pueden vivir en la nube cifradas como secretos.
 - Antigravity se lee **en local** vía `agy -p /usage --output-format json` (verificado en su máquina: `num_turns: 0`, 0 tokens).
@@ -103,7 +103,7 @@ Un proveedor puede desactivarse por configuración sin tocar código.
 Se evalúan después de cada ingesta o cron. Estado de deduplicación en D1, por `(proveedor, cuotaId, periodo)` donde *periodo* = `reiniciaEn` vigente.
 
 1. **Úsalo o piérdelo**
-   - Condición: `restante > 0` y `reiniciaEn - ahora ≤ 1 día` (semanal) o `≤ 4 días` (mensual).
+   - Condición: `restante > 0` y `reiniciaEn - ahora ≤ 1 día` (semanal) o `≤ 5 días` (mensual).
    - Una vez por periodo y cuota.
    - Todas las cuotas que se disparan en la misma evaluación → **un solo mensaje**, ordenadas por **prioridad**: primero la que caduca antes; a igualdad, la de mayor cantidad restante en términos relativos (llamada mía; si hay dato en $ se puede usar el valor).
    - Cada línea: herramienta, cuota, % restante (y cantidad si se conoce), cuándo se renueva (fecha local Europe/Madrid y "en X h"), antigüedad del dato si >6 h.
