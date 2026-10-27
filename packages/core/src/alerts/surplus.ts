@@ -17,7 +17,7 @@ export interface SurplusConfig {
 export const DEFAULT_SURPLUS_CONFIG: SurplusConfig = {
   threshold: 0.4,
   periods: 3,
-  paidProviders: ['copilot', 'cursor', 'kilo', 'qoder', 'mimo', 'opencode', 'grok', 'codex', 'antigravity'],
+  paidProviders: ['copilot', 'cursor', 'kilo', 'qoder', 'mimo', 'opencode', 'codex', 'antigravity'],
 }
 
 export function findSurplus(

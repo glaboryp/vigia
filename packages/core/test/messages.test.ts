@@ -163,12 +163,12 @@ describe('statusMessage', () => {
   })
 
   it('lists every enabled provider in label order, marking those without data', () => {
-    const health: ProviderHealth[] = [{ provider: 'grok', consecutiveFailures: 1, brokenNotified: false, lastError: { kind: 'network', message: 'x' } }]
+    const health: ProviderHealth[] = [{ provider: 'qoder', consecutiveFailures: 1, brokenNotified: false, lastError: { kind: 'network', message: 'x' } }]
     const msg = statusMessage(
       [tracked({ provider: 'copilot', quotaId: 'premium', name: 'Premium', window: 'monthly', remainingFraction: 0.5 })],
       health,
       now,
-      ['opencode', 'grok', 'copilot', 'kilo', 'antigravity'],
+      ['opencode', 'qoder', 'copilot', 'kilo', 'antigravity'],
     )
     expect(msg).toMatchInlineSnapshot(`
       "📊 <b>Estado de tus cuotas</b>
@@ -176,7 +176,7 @@ describe('statusMessage', () => {
 
       • <b>Kilo Code</b> — sin datos
 
-      • <b>Grok</b> — sin datos
+      • <b>Qoder CLI</b> — sin datos
 
       • <b>Antigravity</b> — sin datos del portátil
 

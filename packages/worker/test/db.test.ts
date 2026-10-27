@@ -86,22 +86,22 @@ describe('Repo', () => {
   it('binds credentials to their provider', async () => {
     const encRepo = new Repo(env.DB, key)
     await encRepo.putCredential('cursor', 'tok')
-    await env.DB.exec("UPDATE credentials SET provider = 'grok' WHERE provider = 'cursor'")
-    await expect(encRepo.getCredential('grok')).rejects.toThrow()
+    await env.DB.exec("UPDATE credentials SET provider = 'qoder' WHERE provider = 'cursor'")
+    await expect(encRepo.getCredential('qoder')).rejects.toThrow()
   })
 
   it('insertPeriodClose is idempotent and filterable', async () => {
     const c = { provider: 'codex' as const, quotaId: 'weekly', window: 'weekly' as const, periodResetAt: '2026-10-23T00:00:00.000Z', usedFraction: 0.3 }
     await repo.insertPeriodClose(c)
     await repo.insertPeriodClose({ ...c, usedFraction: 0.9 })
-    await repo.insertPeriodClose({ ...c, provider: 'grok' })
+    await repo.insertPeriodClose({ ...c, provider: 'qoder' })
     expect(await repo.getPeriodCloses('codex')).toEqual([c])
     expect(await repo.getPeriodCloses()).toHaveLength(2)
   })
 
   it('roundtrips provider health', async () => {
     const full: ProviderHealth = {
-      provider: 'grok',
+      provider: 'qoder',
       consecutiveFailures: 2,
       lastError: { kind: 'network', message: 'boom' },
       brokenNotified: true,

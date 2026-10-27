@@ -94,7 +94,6 @@ it('lists every enabled provider, marking those without data', () => {
   expect(cards[1]![1]).toContain('Sin datos')
   expect(cards[1]![1]).not.toContain('portátil')
   expect(cards[2]![1]).toContain('Sin datos del portátil')
-  expect(html).not.toContain('Grok')
 })
 
 it('serves every provider not disabled in CONFIG_JSON', async () => {

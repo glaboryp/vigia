@@ -4,7 +4,6 @@ export type ProviderId =
   | 'qoder'
   | 'freebuff'
   | 'codex'
-  | 'grok'
   | 'cursor'
   | 'antigravity'
   | 'mimo'
@@ -44,7 +43,6 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
   qoder: 'Qoder CLI',
   freebuff: 'Freebuff',
   codex: 'Codex',
-  grok: 'Grok',
   cursor: 'Cursor',
   antigravity: 'Antigravity',
   mimo: 'MiMo Code',

@@ -16,7 +16,7 @@ Requisito transversal: **lo más automático posible**. Se aceptan métodos frá
 ## 2. Objetivos, no objetivos, anti-objetivos
 
 **Objetivos**
-- Leer automáticamente consumo restante y fecha de renovación de las 10 herramientas (§5).
+- Leer automáticamente consumo restante y fecha de renovación de las 9 herramientas (§5).
 - Avisos por Telegram (§6) y bot con comandos (§7).
 - Página de estado privada con historial (§8).
 
@@ -73,7 +73,7 @@ Llamadas mías (revisables):
   `{ proveedor, cuotaId, nombre, ventana: '5h'|'diaria'|'semanal'|'mensual', restanteFraccion | restante+total+unidad, reiniciaEn (ISO), fuente: 'nube'|'local', leidoEn }`.
   Un proveedor puede tener varias cuotas (p. ej. Antigravity: Gemini y Claude/GPT).
 - **Proveedores "nube"** se ejecutan en el cron del Worker. **Proveedores "local"** los ejecuta el agente y sube el resultado a `/ingest`.
-- **Credenciales en D1** (cifradas con una clave guardada como secreto del Worker), porque algunas rotan (Codex, Grok) y hay que reescribirlas en cada ejecución. Las que no rotan pueden ir como secretos del Worker.
+- **Credenciales en D1** (cifradas con una clave guardada como secreto del Worker), porque algunas rotan (Codex) y hay que reescribirlas en cada ejecución. Las que no rotan pueden ir como secretos del Worker.
 - **Credenciales empujadas desde el portátil:** cuando la credencial vive en el portátil y se renueva sola allí (token de Cursor), el agente la sube a la nube para que el Worker siga leyendo aunque el portátil esté apagado (hasta que caduque).
 - **Portátil apagado:** el Worker sigue trabajando con el último snapshot conocido y su `reiniciaEn`. Los avisos de "úsalo o piérdelo" se basan en el último dato (indicando su antigüedad). Si un proveedor local lleva >48 h sin datos, se marca como "desactualizado" en estado/resumen, sin aviso propio (llamada mía).
 
@@ -88,7 +88,6 @@ Fuentes de referencia para el código: Orca (`stablyai/orca`, `src/main/rate-lim
 | Qoder CLI | nube | PAT → `POST openapi.qoder.sh/api/v1/jobToken/exchange` → `GET /api/v3/user/status` (`quota`, `nextResetAt`). No oficial; el SDK oficial requiere el binario `qodercli`, no viable en Worker. Si el endpoint falla, mover a local con el SDK | mensual | PAT de Qoder |
 | Freebuff | nube | `GET codebuff.com/api/v1/freebuff/session` (solo GET; POST abre sesión) → `freeWindows` / `freebucks` / `subscription.renewsAt` | semanal, mensual (no diaria) | token de Freebuff |
 | Codex | nube | `GET chatgpt.com/backend-api/wham/usage` (`primary_window`, `secondary_window`, `reset_at`). Refresco OAuth en `auth.openai.com/oauth/token`; **persistir el refresh token rotado en D1**. Usar un login **separado** del del portátil (`codex login --device-auth` con otro `CODEX_HOME`). Nunca llamar a `.../consume` | semanal (la de 5 h no avisa) | OAuth ChatGPT (rota) |
-| Grok | nube | `POST grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig` (gRPC-web, decodificar protobuf por número de campo; ver Ceiling). Refresco en `auth.x.ai/oauth2/token`, persistir token rotado. Gloria usa el CLI `grok` en el portátil (`~/.grok`), así que la nube usa un login **separado** (`grok login` con otro `GROK_HOME`), igual que Codex. Si xAI invalida una sesión al abrir otra, Grok pasa a proveedor local (llamada mía) | semanal | OAuth del CLI `grok` (rota) |
 | Cursor | nube, credencial desde local | `GET cursor.com/api/usage-summary` (`billingCycleEnd`, `individualUsage.plan.used/limit`). Cookie `WorkosCursorSessionToken` construida a partir de `cursorAuth/accessToken` en `~/.config/Cursor/User/globalStorage/state.vscdb`; el agente local la sube | mensual o semanal según plan (detectar) | JWT de Cursor (rota en local) |
 | Antigravity | local | `AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /usage --output-format json --print-timeout 20s` → `command.data.groups[].buckets[]` (`remaining_fraction`, `reset_time`, `window`). Requiere `agy` ≥ 1.1.11 (tiene 1.4.2). **Nunca** añadir `--disable-slash-commands` | semanal (2 cuotas) | gestionada por `agy` |
 | MiMo Code | local | `GET platform.xiaomimimo.com/api/v1/tokenPlan/usage` y `/tokenPlan/detail` (`currentPeriodEnd`). Ojo: sesión inválida = HTTP 200 con `code` 401/403 en el cuerpo | mensual | cookies `api-platform_serviceToken`, `userId` del navegador |
