@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -66,38 +66,6 @@ describe('codex', () => {
       throw Object.assign(new Error('spawn'), { code: 'ENOENT' })
     }
     await expect(loginProvider('codex', deps({ runInteractive: run }))).rejects.toThrow(/no está instalado/)
-  })
-})
-
-describe('grok', () => {
-  it('skips the login when a valid auth.json exists', async () => {
-    await mkdir(join(home, '.vigia', 'grok'), { recursive: true })
-    await writeFile(join(home, '.vigia', 'grok', 'auth.json'), JSON.stringify({ 'https://auth.x.ai::x': { key: 'k' } }))
-    const run = vi.fn(async () => 0)
-    await loginProvider('grok', deps({ runInteractive: run }))
-    expect(run).not.toHaveBeenCalled()
-    expect(credentialPosts()).toHaveLength(1)
-  })
-
-  it('runs grok login with GROK_HOME otherwise', async () => {
-    const run = vi.fn(async (_c: string, _a: string[], env: NodeJS.ProcessEnv) => {
-      await writeFile(join(env.GROK_HOME!, 'auth.json'), JSON.stringify({ s: { refresh_token: 'r' } }))
-      return 0
-    })
-    await loginProvider('grok', deps({ runInteractive: run }))
-    expect(run.mock.calls[0]!.slice(0, 2)).toEqual(['grok', ['login']])
-    expect(credentialPosts()).toHaveLength(1)
-  })
-
-  it('ignores an unparsable existing auth.json and logs in', async () => {
-    await mkdir(join(home, '.vigia', 'grok'), { recursive: true })
-    await writeFile(join(home, '.vigia', 'grok', 'auth.json'), 'garbage')
-    const run = vi.fn(async (_c: string, _a: string[], env: NodeJS.ProcessEnv) => {
-      await writeFile(join(env.GROK_HOME!, 'auth.json'), JSON.stringify({ s: { key: 'k' } }))
-      return 0
-    })
-    await loginProvider('grok', deps({ runInteractive: run }))
-    expect(run).toHaveBeenCalled()
   })
 })
 
@@ -206,10 +174,10 @@ describe('kilo and qoder', () => {
 })
 
 describe('main', () => {
-  it('prints usage with the six ids when no id or an unknown id is given', async () => {
+  it('prints usage with the five ids when no id or an unknown id is given', async () => {
     expect(await main([], deps())).toBe(1)
     expect(await main(['nope'], deps())).toBe(1)
-    expect(err[0]).toMatch(/copilot.*codex.*grok.*freebuff.*kilo.*qoder/)
+    expect(err[0]).toMatch(/copilot.*codex.*freebuff.*kilo.*qoder/)
     expect(posts).toHaveLength(0)
   })
 
@@ -238,11 +206,10 @@ describe('main', () => {
     const f = (async (url: string, init: RequestInit) => (String(url).includes('github.com') ? responses.shift()! : real(url, init))) as unknown as typeof fetch
     const code = await main(['all'], deps({ runInteractive: run, fetch: f, secretTool: async () => ({ code: 1, stdout: '', stderr: '' }) }))
     expect(code).toBe(1)
-    expect(order).toEqual(['codex', 'grok'])
+    expect(order).toEqual(['codex'])
     expect(credentialPosts().map((p) => p.body.credentials[0].provider)).toEqual(['copilot', 'kilo', 'qoder'])
     const text = [...out, ...err].join('\n')
     expect(text).toMatch(/Resumen/)
-    expect(text).toMatch(/grok/)
     expect(text).toMatch(/freebuff/)
   })
 })

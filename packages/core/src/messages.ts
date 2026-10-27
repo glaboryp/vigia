@@ -10,7 +10,6 @@ export const FIX_HINTS: Record<ProviderId, string> = {
   opencode: 'Inicia sesión en opencode.ai con Brave',
   antigravity: 'Ejecuta `agy` y vuelve a iniciar sesión',
   codex: 'Repite el login: pnpm --filter agent run login codex',
-  grok: 'Repite el login de la nube (ver README)',
   copilot: 'Genera un token nuevo y súbelo (ver README)',
   kilo: 'Genera un token nuevo y súbelo (ver README)',
   qoder: 'Genera un token nuevo y súbelo (ver README)',

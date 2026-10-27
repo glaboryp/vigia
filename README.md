@@ -2,7 +2,7 @@
 
 ## Qué es
 
-VigIA vigila las cuotas de tus herramientas de IA (Copilot, Kilo, Qoder, Freebuff, Codex, Grok, Cursor, Antigravity, MiMo y opencode) y te avisa por Telegram:
+VigIA vigila las cuotas de tus herramientas de IA (Copilot, Kilo, Qoder, Freebuff, Codex, Cursor, Antigravity, MiMo y opencode) y te avisa por Telegram:
 
 - "Úsalo o piérdelo": una cuota semanal (≤ 1 día) o mensual (≤ 5 días) a punto de renovarse con saldo sin gastar. Un único mensaje por evaluación, ordenado por prioridad.
 - "Ya tienes cuota otra vez" cuando una cuota agotada se renueva.
@@ -69,8 +69,11 @@ Cada uno se sube con `pnpm exec wrangler secret put <NOMBRE>` (pega el valor cua
 ### 4. Despliegue
 
 ```bash
+pnpm exec wrangler d1 migrations apply vigia --remote
 pnpm exec wrangler deploy
 ```
+
+Aplica las migraciones pendientes antes de desplegar; algunas limpian credenciales y datos que ya no se usan.
 
 Anota la URL `https://vigia.<tu-subdominio>.workers.dev`.
 
@@ -108,7 +111,7 @@ pnpm --filter agent run login <herramienta>
 pnpm --filter agent run login all
 ```
 
-(`herramienta` ∈ `copilot`, `codex`, `grok`, `freebuff`, `kilo`, `qoder`; `all` las recorre en ese orden, sigue tras un fallo y muestra un resumen). Valida el formato en local, nunca imprime la credencial y solo escribe en disco los `auth.json` que gestionan Codex y Grok.
+(`herramienta` ∈ `copilot`, `codex`, `freebuff`, `kilo`, `qoder`; `all` las recorre en ese orden, sigue tras un fallo y muestra un resumen). Valida el formato en local, nunca imprime la credencial y solo escribe en disco el `auth.json` de Codex.
 
 **Antes de subir credenciales** crea la configuración del agente (pasos 1 y 2 de [Instalar el agente](#instalar-el-agente)): `login` y `push-credential` la usan para saber a qué Worker enviar y con qué token.
 
@@ -116,7 +119,6 @@ pnpm --filter agent run login all
 |---|---|
 | Copilot | Flujo de dispositivo de GitHub: te muestra una URL y un código; lo introduces en el navegador. |
 | Codex | Ejecuta `codex login --device-auth` con un `CODEX_HOME` propio (`~/.vigia/codex`, que crea él). No sube nada: Codex se lee desde el portátil. |
-| Grok | Ejecuta `grok login` con un `GROK_HOME` propio (`~/.vigia/grok`, que crea él) y sube su `auth.json`. Si ya existe un `auth.json` válido, no vuelve a iniciar sesión. |
 | Freebuff | Lee el token del llavero de GNOME (`secret-tool`, paquete `libsecret-tools`); inicia sesión antes con `freebuff`. |
 | Kilo | Te pide la API key de https://app.kilo.ai/profile (la entrada no se muestra). |
 | Qoder | Te pide un Personal Access Token de https://qoder.com/account/integrations (la entrada no se muestra). |
@@ -138,7 +140,6 @@ Como `pnpm --filter` se ejecuta dentro de `packages/agent`, la ruta del fichero 
 | Qoder | PAT en texto plano, o `{"pat":"..."}`. |
 | Freebuff | Token en texto plano. |
 | Codex | El `auth.json` de Codex (JSON con `tokens.refresh_token`). |
-| Grok | El `auth.json` de Grok (JSON con una entrada que tenga `key` o `refresh_token`). |
 
 Si el fichero no es válido para esa herramienta, el script lo dice sin enviar nada.
 
@@ -168,16 +169,6 @@ pnpm --filter agent run login codex
 ```
 
 No borres `~/.vigia/codex`: el agente lee de ahí y guarda en ese fichero el token renovado.
-
-### Grok (manual)
-
-`pnpm --filter agent run login grok` crea `~/.vigia/grok` y hace todo lo siguiente. A mano, login separado del `~/.grok` del portátil:
-
-```bash
-mkdir -p -m 700 ~/.vigia/grok
-GROK_HOME=~/.vigia/grok grok login
-pnpm --filter agent push-credential grok ~/.vigia/grok/auth.json
-```
 
 ### Cursor
 
@@ -254,7 +245,6 @@ El agente lee las cookies de Brave (perfil `Default`) y hace las peticiones desd
 | opencode | Inicia sesión en opencode.ai con Brave. |
 | Antigravity | Ejecuta `agy` y vuelve a iniciar sesión (ver también el "latch" más abajo). |
 | Codex | Repite el login: `pnpm --filter agent run login codex`. |
-| Grok | Repite el login de la nube (`GROK_HOME=~/.vigia/grok grok login` y `push-credential grok ...`). |
 | Copilot, Kilo, Qoder, Freebuff | Genera un token nuevo y súbelo con `push-credential`. |
 
 Si MiMo u opencode siguen fallando con la sesión iniciada, comprueba que Brave usa el perfil `Default`, que el keyring está desbloqueado y que `secret-tool` está instalado.
@@ -283,13 +273,13 @@ pnpm --filter agent capture <id> --credential-file <ruta-absoluta-o-~/-del-fiche
 
 Antes de hacer commit **revisa a mano cada fichero capturado**: la censura es automática y no infalible. Después ejecuta `pnpm test` y ajusta el proveedor si la respuesta real difiere. Antigravity no usa `capture`: guarda la salida de `agy -p /usage --output-format json` a mano, censurada.
 
-Verificación de extremo a extremo: `/estado` en Telegram muestra las 10 herramientas (o su error), la página abre tras el login de Access y `journalctl --user -u vigia-agent` no muestra errores tras una ejecución.
+Verificación de extremo a extremo: `/estado` en Telegram muestra las herramientas habilitadas (o su error), la página abre tras el login de Access y `journalctl --user -u vigia-agent` no muestra errores tras una ejecución.
 
 ## Seguridad
 
 | Qué | Dónde |
 |---|---|
-| Credenciales de nube (Copilot, Kilo, Qoder, Freebuff, Grok, Cursor) | D1, cifradas con AES-GCM. La clave `CREDENTIALS_KEY` es un secreto del Worker. Nunca en el repositorio. |
+| Credenciales de nube (Copilot, Kilo, Qoder, Freebuff, Cursor) | D1, cifradas con AES-GCM. La clave `CREDENTIALS_KEY` es un secreto del Worker. Nunca en el repositorio. |
 | Credencial de Codex | Solo en el portátil, en `~/.vigia/codex/auth.json`; el agente la renueva localmente. |
 | Cookies de Brave (MiMo, opencode) | Solo en el portátil: el agente las lee en cada ejecución y sube únicamente las cuotas. |
 | Token de Cursor | Se sube a D1 (cifrado). El hash de la última versión subida está en `~/.config/vigia/state.json`. |

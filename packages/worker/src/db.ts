@@ -1,3 +1,4 @@
+import { PROVIDER_LABELS } from 'core'
 import type {
   PeriodClose,
   ErrorKind,
@@ -81,6 +82,7 @@ const toHealth = (r: HealthRow): StoredHealth => ({
 })
 
 const iso = (s: string): string => new Date(s).toISOString()
+const isKnownProvider = (provider: string): provider is ProviderId => Object.hasOwn(PROVIDER_LABELS, provider)
 
 export class Repo {
   constructor(
@@ -118,7 +120,7 @@ export class Repo {
     const { results } = await this.db
       .prepare('SELECT * FROM current_quotas ORDER BY provider, quota_id')
       .all<QuotaRow>()
-    return results.map(toQuota)
+    return results.filter((r) => isKnownProvider(r.provider)).map(toQuota)
   }
 
   async upsertCurrentQuota(q: StoredQuota): Promise<void> {
@@ -176,12 +178,12 @@ export class Repo {
             .prepare('SELECT * FROM period_closes WHERE provider = ? ORDER BY quota_id, period_reset_at')
             .bind(provider)
     const { results } = await stmt.all<CloseRow>()
-    return results.map(toClose)
+    return results.filter((r) => isKnownProvider(r.provider)).map(toClose)
   }
 
   async getHealth(): Promise<StoredHealth[]> {
     const { results } = await this.db.prepare('SELECT * FROM provider_health ORDER BY provider').all<HealthRow>()
-    return results.map(toHealth)
+    return results.filter((r) => isKnownProvider(r.provider)).map(toHealth)
   }
 
   async putHealth(h: StoredHealth): Promise<void> {

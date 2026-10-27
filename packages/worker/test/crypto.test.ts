@@ -32,7 +32,7 @@ describe('crypto', () => {
     const key = newKey()
     const payload = await encrypt(key, 'secret', 'codex')
     expect(await decrypt(key, payload, 'codex')).toBe('secret')
-    await expect(decrypt(key, payload, 'grok')).rejects.toThrow()
+    await expect(decrypt(key, payload, 'qoder')).rejects.toThrow()
     await expect(decrypt(key, payload)).rejects.toThrow()
   })
 

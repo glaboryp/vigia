@@ -16,11 +16,11 @@ const close = (
 })
 
 describe('findSurplus', () => {
-  it('defaults to 0.4, 3 periods and every provider but freebuff', () => {
+  it('defaults to 0.4, 3 periods and paid providers only', () => {
     expect(DEFAULT_SURPLUS_CONFIG.threshold).toBe(0.4)
     expect(DEFAULT_SURPLUS_CONFIG.periods).toBe(3)
     expect(DEFAULT_SURPLUS_CONFIG.paidProviders).toEqual([
-      'copilot', 'cursor', 'kilo', 'qoder', 'mimo', 'opencode', 'grok', 'codex', 'antigravity',
+      'copilot', 'cursor', 'kilo', 'qoder', 'mimo', 'opencode', 'codex', 'antigravity',
     ])
   })
   it('detects three consecutive underused closes and averages them', () => {

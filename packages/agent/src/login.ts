@@ -9,7 +9,7 @@ import { loadConfig, type AgentConfig } from './config.js'
 import { IngestError, postIngest } from './ingest-client.js'
 import { validateCredential } from './push-credential.js'
 
-export const LOGIN_IDS = ['copilot', 'codex', 'grok', 'freebuff', 'kilo', 'qoder'] as const
+export const LOGIN_IDS = ['copilot', 'codex', 'freebuff', 'kilo', 'qoder'] as const
 type LoginId = (typeof LOGIN_IDS)[number]
 
 const COPILOT_CLIENT_ID = 'Iv1.b507a08c87ecfe98'
@@ -111,31 +111,15 @@ async function readAuthFile(path: string): Promise<string | null> {
   }
 }
 
-async function loginViaCli(id: 'codex' | 'grok', r: Resolved): Promise<void> {
+async function loginViaCli(id: 'codex', r: Resolved): Promise<void> {
   const dir = join(r.home, '.vigia', id)
   const authPath = join(dir, 'auth.json')
-  if (id === 'grok') {
-    const existing = await readAuthFile(authPath)
-    if (existing !== null) {
-      try {
-        validateCredential(id, existing)
-        return await upload(id, existing, r)
-      } catch {
-      }
-    }
-  }
   await mkdir(dir, { recursive: true, mode: 0o700 })
-  const homeVar = id === 'codex' ? 'CODEX_HOME' : 'GROK_HOME'
-  const args = id === 'codex' ? ['login', '--device-auth'] : ['login']
-  await runCli(id, args, { ...r.env, [homeVar]: dir }, r)
+  await runCli(id, ['login', '--device-auth'], { ...r.env, CODEX_HOME: dir }, r)
   const raw = await readAuthFile(authPath)
   if (raw === null) throw new Error(`${id} no ha creado ${authPath}`)
-  if (id === 'codex') {
-    codexProvider.parseCredential(raw)
-    r.log('✅ Codex queda configurado en el portátil (el agente lo lee desde ahí).')
-    return
-  }
-  await upload(id, raw, r)
+  codexProvider.parseCredential(raw)
+  r.log('✅ Codex queda configurado en el portátil (el agente lo lee desde ahí).')
 }
 
 export async function copilotDeviceFlow(deps: {
@@ -257,7 +241,6 @@ export async function loginProvider(id: LoginId, deps: LoginDeps): Promise<void>
     case 'copilot':
       return upload('copilot', await copilotDeviceFlow(r), r)
     case 'codex':
-    case 'grok':
       return loginViaCli(id, r)
     case 'freebuff':
       return loginFreebuff(r)

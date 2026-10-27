@@ -242,11 +242,11 @@ describe('processReadings', () => {
     await repo.putHealth({ provider: 'cursor', consecutiveFailures: 0, brokenNotified: false, mutedUntil: at(24 * HOUR) })
     await run([
       ok('codex', [quota()]),
-      ok('grok', [quota({ quotaId: 'grok-weekly', resetsAt: at(10 * HOUR) })]),
+      ok('qoder', [quota({ quotaId: 'weekly', resetsAt: at(10 * HOUR) })]),
       fail('cursor', NOW.toISOString()),
     ])
     expect(tg.texts).toHaveLength(1)
-    expect(tg.texts[0]).toContain('Grok')
+    expect(tg.texts[0]).toContain('Qoder CLI')
     expect(tg.texts[0]).not.toContain('Codex')
     expect((await repo.getHealth()).find((h) => h.provider === 'cursor')).toMatchObject({
       consecutiveFailures: 1,
@@ -303,9 +303,9 @@ describe('processReadings', () => {
   })
 
   it('alerts after three consecutive non-auth failures', async () => {
-    for (let i = 0; i < 3; i++) await run([fail('grok', at(i * HOUR), 'network')], new Date(at(i * HOUR)))
+    for (let i = 0; i < 3; i++) await run([fail('qoder', at(i * HOUR), 'network')], new Date(at(i * HOUR)))
     expect(tg.texts).toHaveLength(1)
-    expect(await repo.getSentKeys('health:')).toEqual(new Set([`health:grok:broken:${at(2 * HOUR)}`]))
+    expect(await repo.getSentKeys('health:')).toEqual(new Set([`health:qoder:broken:${at(2 * HOUR)}`]))
   })
 
   it('retries a broken alert whose send failed on the next failure', async () => {
