@@ -179,6 +179,14 @@ describe('processReadings', () => {
     expect(tg.texts[0]).toContain('Cuota renovada')
   })
 
+  it('does not send renewal messages for Freebuff daily quota', async () => {
+    const daily = quota({ provider: 'freebuff', quotaId: 'freebucks-daily', name: 'Freebuff (gratis, diario)', window: 'daily', remainingFraction: 0, resetsAt: at(HOUR) })
+    await run([ok('freebuff', [daily])])
+    const later = new Date(NOW.getTime() + 2 * HOUR)
+    await run([ok('freebuff', [{ ...daily, remainingFraction: 1, resetsAt: at(24 * HOUR + HOUR) }], later.toISOString())], later)
+    expect(tg.texts).toEqual([])
+  })
+
   it('groups every due use-or-lose quota into one message', async () => {
     await run([
       ok('codex', [quota({ resetsAt: at(20 * HOUR), remainingFraction: 0.4 })]),

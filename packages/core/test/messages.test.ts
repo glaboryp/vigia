@@ -190,6 +190,17 @@ describe('statusMessage', () => {
     expect(msg).toContain('<b>Cursor</b> — sin datos')
   })
 
+  it('omits Freebuff quotas from Telegram status', () => {
+    const msg = statusMessage(
+      [tracked({ provider: 'freebuff', quotaId: 'freebucks-daily', name: 'Freebuff (gratis, diario)', window: 'daily' })],
+      [],
+      now,
+      ['freebuff'],
+    )
+    expect(msg).not.toContain('Freebuff')
+    expect(msg).toContain('Todavía no hay datos')
+  })
+
   it('handles no enabled providers', () => {
     expect(statusMessage([], [], now, [])).toMatchInlineSnapshot(`
       "📊 <b>Estado de tus cuotas</b>

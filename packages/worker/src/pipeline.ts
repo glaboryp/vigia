@@ -138,7 +138,7 @@ class Evaluation {
         })
       }
 
-      if (!muted && isRenewalAlert(prev, q)) {
+      if (!muted && q.provider !== 'freebuff' && isRenewalAlert(prev, q)) {
         const renewalKey = `renewed:${periodKey({ provider: q.provider, quotaId: q.quotaId, resetsAt: q.resetsAt })}`
         if (!(await this.sendOnce(renewalKey, renewedMessage(next)))) continue
       }
@@ -149,7 +149,7 @@ class Evaluation {
   }
 
   private async useOrLose(): Promise<void> {
-    const quotas = (await this.repo.getCurrentQuotas()).filter((q) => !this.isMuted(q.provider))
+    const quotas = (await this.repo.getCurrentQuotas()).filter((q) => q.provider !== 'freebuff' && !this.isMuted(q.provider))
     const due = dueUseOrLose(quotas, this.now, await this.repo.getSentKeys('useorlose:'))
     if (due.length === 0) return
     if (!(await this.send(useOrLoseMessage(due, this.now)))) return

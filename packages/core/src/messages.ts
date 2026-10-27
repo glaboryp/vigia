@@ -110,6 +110,7 @@ export function statusMessage(
   const healthBy = new Map(health.map((h) => [h.provider, h]))
   const lines: string[] = []
   for (const provider of PROVIDER_ORDER) {
+    if (provider === 'freebuff') continue
     if (!enabled.includes(provider)) continue
     const own = quotas.filter((q) => q.provider === provider)
     const h = healthBy.get(provider)

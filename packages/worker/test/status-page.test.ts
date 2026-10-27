@@ -121,6 +121,25 @@ it('renders structure, sections and footer', () => {
   expect(html).not.toContain('<script')
 })
 
+it('shows only Freebuff daily quota and daily history', () => {
+  const html = renderStatusPage({
+    ...base,
+    quotas: [
+      quota({ provider: 'freebuff', quotaId: 'freebucks-daily', name: 'Freebuff (gratis, diario)', window: 'daily' }),
+      quota({ provider: 'freebuff', quotaId: 'free-month', name: 'Freebuff (gratis)' }),
+      quota({ provider: 'freebuff', quotaId: 'subscription-month', name: 'Freebuff (suscripción)' }),
+    ],
+    closes: [
+      { provider: 'freebuff', quotaId: 'freebucks-daily', window: 'daily', periodResetAt: '2026-10-22T07:00:00Z', usedFraction: 0.2 },
+      { provider: 'freebuff', quotaId: 'free-month', window: 'monthly', periodResetAt: '2026-10-01T07:00:00Z', usedFraction: 0.8 },
+    ],
+  })
+  expect(html).toContain('Freebuff (gratis, diario)')
+  expect(html).not.toContain('Freebuff (gratis)</strong>')
+  expect(html).not.toContain('Freebuff (suscripción)')
+  expect(html).not.toContain('free-month')
+})
+
 it('escapes dynamic strings', () => {
   const html = renderStatusPage({
     ...base,
