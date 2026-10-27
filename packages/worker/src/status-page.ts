@@ -88,7 +88,7 @@ function quotaHtml(q: StoredQuota, now: Date): string {
 
 function currentSection(data: StatusPageData): string {
   const cards = PROVIDERS.filter((id) => data.enabled.includes(id)).map((id) => {
-    const quotas = data.quotas.filter((q) => q.provider === id)
+    const quotas = data.quotas.filter((q) => q.provider === id && (id !== 'freebuff' || q.quotaId === 'freebucks-daily'))
     const health = data.health.find((h) => h.provider === id)
     const source = quotas[0]?.source ?? (LOCAL_PROVIDERS.includes(id) ? 'local' : 'cloud')
     const badges: string[] = []
@@ -108,6 +108,7 @@ function historySection(data: StatusPageData): string {
     const byQuota = new Map<string, PeriodClose[]>()
     for (const c of data.closes) {
       if (c.provider !== id) continue
+      if (id === 'freebuff' && c.quotaId !== 'freebucks-daily') continue
       byQuota.set(c.quotaId, [...(byQuota.get(c.quotaId) ?? []), c])
     }
     return [...byQuota.entries()].map(([quotaId, closes]) => {
@@ -129,10 +130,11 @@ ${rows}
 }
 
 function surplusSection(data: StatusPageData): string {
+  const items = data.surplus.filter((s) => s.provider !== 'freebuff' || s.quotaId === 'freebucks-daily')
   const body =
-    data.surplus.length === 0
+    items.length === 0
       ? '<p class="muted">Nada que señalar</p>'
-      : `<ul>${data.surplus
+      : `<ul>${items
           .map((s) => {
             const name = data.quotas.find((q) => q.provider === s.provider && q.quotaId === s.quotaId)?.name ?? s.quotaId
             return `<li>${escapeHtml(PROVIDER_LABELS[s.provider])} · ${escapeHtml(name)}: consumo medio ${pct(s.avgUsed)}% en los últimos periodos</li>`

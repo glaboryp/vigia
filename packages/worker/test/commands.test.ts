@@ -94,6 +94,14 @@ describe('POST /telegram', () => {
     expect(tg.texts[0]).toContain('Cursor')
   })
 
+  it('hides Freebuff quotas from Telegram status and priority', async () => {
+    await seedQuota({ provider: 'freebuff', quotaId: 'freebucks-daily', name: 'Freebuff (gratis, diario)', window: 'daily' })
+    await send('/estado')
+    await send('/prioridad')
+    expect(tg.texts[0]).not.toContain('Freebuff')
+    expect(tg.texts[1]).not.toContain('Freebuff')
+  })
+
   it('/estado Cursor shows only that tool, case and accent insensitive', async () => {
     await seedQuota()
     await seedQuota({ provider: 'codex', quotaId: 'weekly' })

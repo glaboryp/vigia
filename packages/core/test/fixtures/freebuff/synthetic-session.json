@@ -1,6 +1,14 @@
 {
   "_synthetic": true,
   "status": "none",
+  "freebucks": {
+    "daily": {
+      "limit": 5,
+      "remaining": 4,
+      "spent": 1,
+      "resetAt": "2026-10-24T07:00:00.000Z"
+    }
+  },
   "freeWindows": {
     "dayUsed": 1,
     "dayLimit": 5,

@@ -100,7 +100,7 @@ function localAgeNote(quotas: StoredQuota[], now: Date, enabled: ProviderId[]): 
 }
 
 function priorityMessage(quotas: StoredQuota[], now: Date): string {
-  const usable = sortByPriority(quotas.filter((q) => q.remainingFraction > 0 && Date.parse(q.resetsAt) > now.getTime()))
+  const usable = sortByPriority(quotas.filter((q) => q.provider !== 'freebuff' && q.remainingFraction > 0 && Date.parse(q.resetsAt) > now.getTime()))
   if (usable.length === 0) return 'No hay cuotas con saldo que se renueven pronto'
   const lines = usable.map((q) => {
     const siblings = usable.filter((o) => o.provider === q.provider).length
@@ -113,6 +113,7 @@ function priorityMessage(quotas: StoredQuota[], now: Date): string {
 
 async function historyMessage(repo: Repo, provider: ProviderId): Promise<string> {
   const label = PROVIDER_LABELS[provider]
+  if (provider === 'freebuff') return `El historial de ${escapeHtml(label)} no se muestra en Telegram`
   const closes = (await repo.getPeriodCloses(provider))
     .sort((a, b) => Date.parse(b.periodResetAt) - Date.parse(a.periodResetAt))
     .slice(0, HISTORY_SIZE)
