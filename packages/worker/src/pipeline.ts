@@ -114,6 +114,10 @@ class Evaluation {
   }
 
   private async updateQuotas(reading: Extract<ProviderReading, { ok: true }>): Promise<void> {
+    const providerCurrent = [...this.current.values()].filter((q) => q.provider === reading.provider)
+    const latestReadAt = Math.max(...providerCurrent.map((q) => Date.parse(q.readAt)))
+    if (Number.isFinite(latestReadAt) && Date.parse(reading.readAt) < latestReadAt) return
+
     const muted = this.isMuted(reading.provider)
     for (const q of reading.quotas) {
       const key = quotaKey(q.provider, q.quotaId)
@@ -145,6 +149,12 @@ class Evaluation {
 
       await this.repo.upsertCurrentQuota(next)
       this.current.set(key, next)
+    }
+
+    const keepQuotaIds = new Set(reading.quotas.map((q) => q.quotaId))
+    await this.repo.deleteCurrentQuotasExcept(reading.provider, [...keepQuotaIds])
+    for (const [key, q] of this.current) {
+      if (q.provider === reading.provider && !keepQuotaIds.has(q.quotaId)) this.current.delete(key)
     }
   }
 

@@ -159,6 +159,17 @@ export class Repo {
       .run()
   }
 
+  async deleteCurrentQuotasExcept(provider: ProviderId, quotaIds: string[]): Promise<void> {
+    const ids = [...new Set(quotaIds)]
+    const stmt =
+      ids.length === 0
+        ? this.db.prepare('DELETE FROM current_quotas WHERE provider = ?').bind(provider)
+        : this.db
+            .prepare(`DELETE FROM current_quotas WHERE provider = ? AND quota_id NOT IN (${ids.map(() => '?').join(', ')})`)
+            .bind(provider, ...ids)
+    await stmt.run()
+  }
+
   async insertPeriodClose(c: PeriodClose): Promise<void> {
     await this.db
       .prepare(
